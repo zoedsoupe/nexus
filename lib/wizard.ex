@@ -1,0 +1,2 @@
+defmodule Wizard do
+end
