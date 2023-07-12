@@ -17,6 +17,7 @@ defmodule Nexus.MixProject do
 
   defp deps do
     [
+      {:ecto, "~> 3.10"},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false}
     ]
   end
