@@ -7,12 +7,13 @@ defmodule Nexus.MixProject do
       version: "0.1.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      escript: [main_module: Escript.Example]
     ]
   end
 
   def application do
-    [mod: {Nexus.Application, []}, extra_applications: [:logger]]
+    [extra_applications: [:logger]]
   end
 
   defp deps do
