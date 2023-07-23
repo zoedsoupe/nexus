@@ -16,20 +16,21 @@ An `Elixir` library to write command line apps in a cleaner and elegant way!
 ## Example
 
 ```elixir dark
-defmodule MyCommand do
+defmodule MyCLI do
   use Nexus
-
-  @behaviour Nexus.Handler
 
   @doc """
   Answer "fizz" on "buzz" input and "buzz" on "fizz" input.
   """
-  defcommand :fizzbuzz, type: {:enum, ["fizz", "buzz"]}, required: true
+  defcommand :fizzbuzz, type: {:enum, ["fizz", "buzz"]}, required?: true
 
-  @impl Nexus.Handler
+  @impl Nexus.CLI
   # input can be named to anything
+  @spec handle_input(atom, args) :: :ok
+        when args: list(binary)
   def handle_input(:fizzbuzz, input) do
     # logic to answer "fizz" or "buzz"
+    :ok
   end
 end
 ```
