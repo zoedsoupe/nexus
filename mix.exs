@@ -12,12 +12,12 @@ defmodule Nexus.MixProject do
   end
 
   def application do
-    [extra_applications: [:logger]]
+    [mod: {Nexus.Application, []}, extra_applications: [:logger]]
   end
 
   defp deps do
     [
-      {:ecto, "~> 3.10"},
+      {:ex_doc, "~> 0.27", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false}
     ]
   end

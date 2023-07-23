@@ -13,9 +13,7 @@
 
     inputs = sys:
       with pkgs sys;
-        [
-          elixir_1_14
-        ]
+        [elixir_1_14 erlang]
         ++ lib.optional stdenv.isLinux [
           inotify-tools
           gtk-engine-murrine
