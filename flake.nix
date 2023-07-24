@@ -29,16 +29,12 @@
       inherit (pkgs systems.linux) beam;
       beamPackages = beam.packagesWith beam.interpreters.erlang;
     in
-      beamPackages.mixRelease rec {
-        pname = name;
+      beamPackages.buildMix {
+        inherit name;
         version = "0.1.0";
         src = ./.;
         postBuild = "mix do deps.loadpaths --no-deps-check";
-        mixFodDeps = beamPackages.fetchMixDeps {
-          inherit src version;
-          pname = "mix-deps-${pname}";
-          sha256 = "";
-        };
+        beamDeps = [];
       };
 
     devShells = {
