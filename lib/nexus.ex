@@ -131,10 +131,6 @@ defmodule Nexus do
     end
   end
 
-  def parse_to(:string, value) do
-    to_string(value)
-  end
-
   @doc """
   Given a module which defines a CLI with `Nexus`, builds
   a default help string that can be printed safelly.
@@ -155,5 +151,21 @@ defmodule Nexus do
     COMMANDS:\n
     #{Enum.map_join(cmds, "\n", &"  #{elem(&1, 0)} - ")}
     """
+  end
+
+  def parse_to(:string, value) do
+    to_string(value)
+  end
+
+  def parse_to(:atom, value) do
+    String.to_existing_atom(value)
+  end
+
+  def parse_to(:integer, value) do
+    String.to_integer(value)
+  end
+
+  def parse_to(:float, value) do
+    String.to_float(value)
   end
 end
