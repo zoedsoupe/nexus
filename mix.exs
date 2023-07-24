@@ -32,6 +32,7 @@ defmodule Nexus.MixProject do
 
   defp package do
     %{
+      name: "nexus_cli",
       licenses: ["WTFPL"],
       contributors: ["zoedsoupe"],
       links: %{"GitHub" => @source_url},
