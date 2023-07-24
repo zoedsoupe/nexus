@@ -1,5 +1,8 @@
 defmodule Nexus.Command do
-  @moduledoc false
+  @moduledoc """
+  Defines a command entry for a CLI module. It also
+  implements some basic validations.
+  """
 
   require Logger
 

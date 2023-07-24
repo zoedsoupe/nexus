@@ -11,6 +11,7 @@ defmodule Nexus.MixProject do
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      docs: docs(),
       escript: [main_module: Escript.Example],
       package: package(),
       source_url: @source_url,
@@ -36,6 +37,13 @@ defmodule Nexus.MixProject do
       links: %{"GitHub" => @source_url},
       files: ~w(lib/nexus lib/nexus.ex LICENSE README.md mix.*)
     }
+  end
+
+  defp docs do
+    [
+      main: "Nexus",
+      extras: ["README.md"]
+    ]
   end
 
   defp description do

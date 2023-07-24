@@ -1,5 +1,9 @@
 defmodule Nexus.CLI do
-  @moduledoc false
+  @moduledoc """
+  Define callback that a CLI module needs to follow to be able
+  to be runned and also define helper functions to parse a single
+  command againts a raw input.
+  """
 
   @callback version :: String.t()
   @callback banner :: String.t()
