@@ -31,5 +31,6 @@ defmodule Mix.Tasks.Example do
     IO.puts("Running :foo command...")
   end
 
+  Nexus.help()
   Nexus.parse()
 end

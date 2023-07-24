@@ -80,7 +80,9 @@ defmodule Nexus do
 
       @impl Nexus.CLI
       def handle_input(:help, _args) do
-        IO.puts("Hello, I'm a help")
+        __MODULE__
+        |> Nexus.help()
+        |> IO.puts()
       end
     end
   end
@@ -131,5 +133,27 @@ defmodule Nexus do
 
   def parse_to(:string, value) do
     to_string(value)
+  end
+
+  @doc """
+  Given a module which defines a CLI with `Nexus`, builds
+  a default help string that can be printed safelly.
+
+  This function is used when you use the `help/0` macro.
+  """
+  def help(cli_module) do
+    cmds = cli_module.__commands__()
+
+    banner =
+      if function_exported?(cli_module, :banner, 0) do
+        "#{cli_module.banner()}"
+      end
+
+    """
+    #{banner}\n
+
+    COMMANDS:\n
+    #{Enum.map_join(cmds, "\n", &"  #{elem(&1, 0)} - ")}
+    """
   end
 end
