@@ -21,8 +21,8 @@ defmodule Escript.Example do
   def version, do: "0.1.0"
 
   @impl true
-  def handle_input(:foo, _args) do
-    IO.puts("Running :foo command...")
+  def handle_input(:foo, input) do
+    IO.puts(inspect(input))
   end
 
   Nexus.parse()

@@ -4,6 +4,8 @@ defmodule Nexus.CLI do
   to be runned and also define helper functions to parse a single
   command againts a raw input.
   """
+  alias Nexus.Command.Input
+  alias Nexus.Parser
 
   @callback version :: String.t()
   @callback banner :: String.t()
@@ -21,16 +23,12 @@ defmodule Nexus.CLI do
     acc = {%{}, raw}
 
     {cli, _raw} =
-      Enum.reduce(cmds, acc, fn {cmd, spec}, {cli, raw} ->
-        {:ok, value} = parse_command({cmd, spec}, raw)
-        {Map.put(cli, cmd, value), raw}
+      Enum.reduce(cmds, acc, fn spec, {cli, raw} ->
+        {value, raw} = Parser.command_from_raw!(spec, raw)
+        input = Input.parse!(value, raw)
+        {Map.put(cli, spec.name, input), raw}
       end)
 
-    {:ok, cli}
-  end
-
-  def parse_command({_cmd, spec}, raw) do
-    value = Nexus.parse_to(spec.type, raw)
-    {:ok, value}
+    {:ok, struct(module, cli)}
   end
 end
