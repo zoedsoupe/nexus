@@ -32,7 +32,7 @@ defmodule Nexus do
       end
   """
 
-  @type command :: {atom, Nexus.Command.t()}
+  @type command :: Nexus.Command.t()
 
   defmacro __using__(_opts) do
     quote do
@@ -114,9 +114,8 @@ defmodule Nexus do
     quote do
       def __commands__, do: @commands
 
-      def run([name | args]) do
-        cmd = Enum.find(@commands, fn cmd -> to_string(cmd.name) == name end)
-        Nexus.CommandDispatcher.dispatch!(cmd, args)
+      def run(args) do
+        Nexus.CommandDispatcher.dispatch!(__MODULE__, args)
       end
 
       @spec parse(list(binary)) :: {:ok, Nexus.CLI.t()} | {:error, atom}

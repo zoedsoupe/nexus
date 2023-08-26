@@ -21,15 +21,15 @@ defmodule Nexus.CLI do
     acc = {%{}, raw}
 
     {cli, _raw} =
-      Enum.reduce(cmds, acc, fn {cmd, spec}, {cli, raw} ->
-        {:ok, value} = parse_command({cmd, spec}, raw)
-        {Map.put(cli, cmd, value), raw}
+      Enum.reduce(cmds, acc, fn spec, {cli, raw} ->
+        {:ok, value} = parse_command(spec, raw)
+        {Map.put(cli, spec.name, value), raw}
       end)
 
     {:ok, cli}
   end
 
-  def parse_command({_cmd, spec}, raw) do
+  def parse_command(spec, raw) do
     value = Nexus.parse_to(spec.type, raw)
     {:ok, value}
   end
