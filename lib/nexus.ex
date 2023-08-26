@@ -36,7 +36,7 @@ defmodule Nexus do
 
   defmacro __using__(_opts) do
     quote do
-      @commands %{}
+      Module.register_attribute(__MODULE__, :commands, accumulate: true)
 
       import Nexus, only: [defcommand: 2]
       require Nexus
@@ -57,12 +57,7 @@ defmodule Nexus do
   @spec defcommand(atom, keyword) :: Macro.t()
   defmacro defcommand(cmd, opts) do
     quote do
-      command =
-        unquote(opts)
-        |> Keyword.put(:module, __MODULE__)
-        |> Nexus.Command.parse!()
-
-      @commands Map.put(@commands, unquote(cmd), command)
+      @commands Nexus.__make_command__!(__MODULE__, unquote(cmd), unquote(opts))
     end
   end
 
@@ -120,7 +115,7 @@ defmodule Nexus do
       def __commands__, do: @commands
 
       def run([name | args]) do
-        cmd = Enum.find(@commands, fn {cmd, _spec} -> to_string(cmd) == name end)
+        cmd = Enum.find(@commands, fn cmd -> to_string(cmd.name) == name end)
         Nexus.CommandDispatcher.dispatch!(cmd, args)
       end
 
@@ -142,12 +137,11 @@ defmodule Nexus do
 
     banner =
       if function_exported?(cli_module, :banner, 0) do
-        "#{cli_module.banner()}"
+        "#{cli_module.banner()}\n\n"
       end
 
     """
-    #{banner}\n
-
+    #{banner}
     COMMANDS:\n
     #{Enum.map_join(cmds, "\n", &"  #{elem(&1, 0)} - ")}
     """
@@ -167,5 +161,13 @@ defmodule Nexus do
 
   def parse_to(:float, value) do
     String.to_float(value)
+  end
+
+  def __make_command__!(module, cmd_name, opts) do
+    opts
+    |> Keyword.put(:name, cmd_name)
+    |> Keyword.put(:module, module)
+    |> Keyword.put_new(:required?, false)
+    |> Nexus.Command.parse!()
   end
 end
