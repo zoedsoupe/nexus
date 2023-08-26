@@ -1,6 +1,6 @@
 name: lint
 
-on: [push, pull_request]
+on: pull_request
 
 permissions:
   contents: read
@@ -8,7 +8,7 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    name: Run tests
+    name: Check format and lint
     strategy:
       matrix:
         otp: ['25.1.2.1']

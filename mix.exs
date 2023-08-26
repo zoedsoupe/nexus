@@ -15,13 +15,17 @@ defmodule Nexus.MixProject do
       escript: [main_module: Escript.Example],
       package: package(),
       source_url: @source_url,
-      description: description()
+      description: description(),
+      elixirc_paths: elixirc_paths(Mix.env())
     ]
   end
 
   def application do
     [extra_applications: [:logger]]
   end
+
+  defp elixirc_paths(:dev), do: ["lib", "examples"]
+  defp elixirc_paths(_), do: ["lib"]
 
   defp deps do
     [

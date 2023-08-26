@@ -1,6 +1,6 @@
 name: test
 
-on: [push, pull_request]
+on: pull_request
 
 jobs:
   test:
@@ -18,4 +18,3 @@ jobs:
           elixir-version: ${{matrix.elixir}}
       - run: mix deps.get
       - run: mix test
-

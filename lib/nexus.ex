@@ -32,7 +32,7 @@ defmodule Nexus do
       end
   """
 
-  @type command :: {atom, Nexus.Command.t()}
+  @type command :: Nexus.Command.t()
 
   defmacro __using__(_opts) do
     quote do
@@ -112,11 +112,12 @@ defmodule Nexus do
   """
   defmacro parse do
     quote do
+      defstruct Enum.map(@commands, &{&1.name, nil})
+
       def __commands__, do: @commands
 
-      def run([name | args]) do
-        cmd = Enum.find(@commands, fn cmd -> to_string(cmd.name) == name end)
-        Nexus.CommandDispatcher.dispatch!(cmd, args)
+      def run(args) do
+        Nexus.CommandDispatcher.dispatch!(__MODULE__, args)
       end
 
       @spec parse(list(binary)) :: {:ok, Nexus.CLI.t()} | {:error, atom}
@@ -145,22 +146,6 @@ defmodule Nexus do
     COMMANDS:\n
     #{Enum.map_join(cmds, "\n", &"  #{elem(&1, 0)} - ")}
     """
-  end
-
-  def parse_to(:string, value) do
-    to_string(value)
-  end
-
-  def parse_to(:atom, value) do
-    String.to_existing_atom(value)
-  end
-
-  def parse_to(:integer, value) do
-    String.to_integer(value)
-  end
-
-  def parse_to(:float, value) do
-    String.to_float(value)
   end
 
   def __make_command__!(module, cmd_name, opts) do
