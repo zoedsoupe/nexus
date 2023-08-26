@@ -4,37 +4,19 @@ defmodule Nexus.Command do
   implements some basic validations.
   """
 
-  require Logger
+  import Nexus.Command.Validation
 
-  @type t :: %Nexus.Command{module: atom, type: String.t(), required?: boolean}
+  @type t :: %Nexus.Command{module: atom, type: String.t(), required?: boolean, name: atom}
 
-  @enforce_keys ~w(module type)a
-  defstruct module: nil, required?: true, type: nil
+  @enforce_keys ~w(module type name)a
+  defstruct module: nil, required?: true, type: nil, name: nil
 
-  @spec parse!(keyword | map) :: Nexus.Command.t()
+  @spec parse!(keyword) :: Nexus.Command.t()
   def parse!(attrs) do
     attrs
-    |> maybe_convert_to_map()
-    |> validate_field(:type)
+    |> Map.new()
+    |> validate_type()
+    |> validate_name()
     |> then(&struct(__MODULE__, &1))
   end
-
-  defp maybe_convert_to_map(kw) when is_list(kw) do
-    Map.new(kw)
-  end
-
-  defp maybe_convert_to_map(map), do: map
-
-  defp validate_field(%{type: type} = attrs, :type) do
-    unless valid_type?(type) do
-      raise "Invalid command type"
-    end
-
-    attrs
-  end
-
-  defp validate_field(_, _), do: raise("Invalid command param")
-
-  defp valid_type?(:string), do: true
-  defp valid_type?(_), do: false
 end
