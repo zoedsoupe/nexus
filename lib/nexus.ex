@@ -112,6 +112,8 @@ defmodule Nexus do
   """
   defmacro parse do
     quote do
+      defstruct Enum.map(@commands, &{&1.name, nil})
+
       def __commands__, do: @commands
 
       def run(args) do
@@ -144,22 +146,6 @@ defmodule Nexus do
     COMMANDS:\n
     #{Enum.map_join(cmds, "\n", &"  #{elem(&1, 0)} - ")}
     """
-  end
-
-  def parse_to(:string, value) do
-    to_string(value)
-  end
-
-  def parse_to(:atom, value) do
-    String.to_existing_atom(value)
-  end
-
-  def parse_to(:integer, value) do
-    String.to_integer(value)
-  end
-
-  def parse_to(:float, value) do
-    String.to_float(value)
   end
 
   def __make_command__!(module, cmd_name, opts) do
