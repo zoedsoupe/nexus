@@ -2,15 +2,7 @@ defmodule Nexus.Parser do
   @moduledoc "Should parse the command and return the value"
 
   alias Nexus.Command
-
-  defmodule Error do
-    defexception [:message]
-
-    @impl true
-    def exception(reason) do
-      %__MODULE__{message: "Error parsing command: #{reason}"}
-    end
-  end
+  alias Nexus.FailedCommandParsing, as: Error
 
   @spec command_from_raw!(Command.t(), binary | list(binary)) :: {term, list(binary)}
   def command_from_raw!(cmd, raw) when is_binary(raw) do
