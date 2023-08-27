@@ -12,7 +12,7 @@ An `Elixir` library to write command line apps in a cleaner and elegant way!
 
 [![lint](https://github.com/zoedsoupe/nexus/actions/workflows/lint.yml/badge.svg)](https://github.com/zoedsoupe/nexus/actions/workflows/lint.yml)
 [![test](https://github.com/zoedsoupe/nexus/actions/workflows/test.yml/badge.svg)](https://github.com/zoedsoupe/nexus/actions/workflows/test.yml)
-[![Hex.pm](https://img.shields.io/hexpm/v/phoenix.svg)](https://hex.pm/packages/nexus_cli)
+[![Hex.pm](https://img.shields.io/hexpm/v/nexus_cli.svg)](https://hex.pm/packages/nexus_cli)
 [![Documentation](https://img.shields.io/badge/documentation-gray)](https://hexdocs.pm/nexus_cli)
 
 ## Example
