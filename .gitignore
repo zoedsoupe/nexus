@@ -24,3 +24,10 @@ nexus-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Nix files
+result
+/.nix-mix/
+
+# Escript builds
+nexus

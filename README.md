@@ -1,5 +1,9 @@
 # Nexus
 
+⚠️ This library is highly experimental and not ready for production use! Expect breaking changes! ⚠️
+
+**YOU HAVE BEEN WARNED!**
+
 ```sh
      _      __
 |\ ||_\/| |(_

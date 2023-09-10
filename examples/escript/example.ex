@@ -25,6 +25,7 @@ defmodule Escript.Example do
     IO.puts(inspect(input))
   end
 
+  Nexus.help()
   Nexus.parse()
 
   defdelegate main(args), to: __MODULE__, as: :run
