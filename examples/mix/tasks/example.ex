@@ -18,7 +18,7 @@ defmodule Mix.Tasks.Example do
   use Mix.Task
   use Nexus
 
-  defcommand :foo, type: :string, required?: false
+  defcommand :foo, type: :string, required: false, default: "bar"
 
   @impl Nexus.CLI
   def version, do: "0.1.0"

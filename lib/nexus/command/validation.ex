@@ -27,4 +27,28 @@ defmodule Nexus.Command.Validation do
       raise ArgumentError, "Command name must be an atom"
     end
   end
+
+  @spec validate_name(map) :: map
+  def validate_default(%{required: false, type: type, name: name} = attrs) do
+    default = Map.get(attrs, :default)
+
+    cond do
+      !default ->
+        raise ArgumentError, "Non required commands must have a default value"
+
+      !is_same_type(default, type) ->
+        raise ArgumentError, "Default value for #{name} must be of type #{type}"
+
+      true ->
+        attrs
+    end
+  end
+
+  def validate_default(attrs), do: attrs
+
+  defp is_same_type(value, :string), do: is_binary(value)
+  defp is_same_type(value, :integer), do: is_integer(value)
+  defp is_same_type(value, :float), do: is_float(value)
+  defp is_same_type(value, :atom), do: is_atom(value)
+  defp is_same_type(_, :null), do: true
 end

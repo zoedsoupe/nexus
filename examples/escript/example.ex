@@ -15,7 +15,7 @@ defmodule Escript.Example do
 
   use Nexus
 
-  defcommand :foo, required?: true, type: :string
+  defcommand :foo, required: true, type: :string
 
   @impl true
   def version, do: "0.1.0"
@@ -25,6 +25,7 @@ defmodule Escript.Example do
     IO.puts(inspect(input))
   end
 
+  Nexus.help()
   Nexus.parse()
 
   defdelegate main(args), to: __MODULE__, as: :run

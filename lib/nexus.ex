@@ -9,10 +9,11 @@ defmodule Nexus do
   To define a command you need to name it and pass some options:
 
   - `:type`: the argument type to be parsed to. It can be `:string` (default),
-  `:integer`, `:float`, `{:enum, list(option)}`. The absense of this option
+  `:integer`, `:float` or `:atom`. The absense of this option
   will define a command without arguments, which can be used to define a subcommand
   group.
-  - `:required?`: defines if the presence of the command is required or not. All commands are required by default.
+  - `:required`: defines if the presence of the command is required or not. All commands are required by default. If you define a command as not required, you also need to define a default value.
+  - `:default`: defines a default value for the command. It can be any term, but it must be of the same type as the `:type` option.
 
   ## Usage
 
@@ -117,7 +118,8 @@ defmodule Nexus do
       def __commands__, do: @commands
 
       def run(args) do
-        Nexus.CommandDispatcher.dispatch!(__MODULE__, args)
+        raw = Enum.join(args, " ")
+        Nexus.CommandDispatcher.dispatch!(__MODULE__, raw)
       end
 
       @spec parse(list(binary)) :: {:ok, Nexus.CLI.t()} | {:error, atom}
