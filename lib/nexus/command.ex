@@ -23,6 +23,7 @@ defmodule Nexus.Command do
     |> Map.new()
     |> validate_type()
     |> validate_name()
+    |> validate_default()
     |> then(&struct(__MODULE__, &1))
   end
 end
