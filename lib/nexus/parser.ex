@@ -3,8 +3,8 @@ defmodule Nexus.Parser do
 
   import Nexus.Parser.DSL
 
-  alias Nexus.Command.Input
   alias Nexus.Command
+  alias Nexus.Command.Input
   alias Nexus.FailedCommandParsing, as: Error
 
   @spec run!(binary, Command.t()) :: Input.t()
