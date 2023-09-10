@@ -7,8 +7,8 @@ defmodule Nexus.Parser do
   alias Nexus.Command
   alias Nexus.FailedCommandParsing, as: Error
 
-  @spec run(binary, Command.t()) :: Input.t()
-  def run(raw, %Command{} = cmd) do
+  @spec run!(binary, Command.t()) :: Input.t()
+  def run!(raw, %Command{} = cmd) do
     raw
     |> String.trim_trailing()
     |> String.trim_leading()

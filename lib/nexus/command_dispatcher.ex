@@ -2,31 +2,31 @@ defmodule Nexus.CommandDispatcher do
   @moduledoc false
 
   alias Nexus.Command
-  alias Nexus.Command.Input
   alias Nexus.Parser
 
-  @spec dispatch!(Nexus.command() | binary | list(binary), list(binary)) :: term
+  @spec dispatch!(Nexus.command() | module, binary) :: term
 
   def dispatch!(%Command{} = spec, raw) do
-    {value, raw} = Parser.command_from_raw!(spec, raw)
-    input = Input.parse!(value, raw)
+    input = Parser.run!(raw, spec)
     spec.module.handle_input(spec.name, input)
   end
 
-  def dispatch!(module, args) when is_binary(args) do
-    dispatch!(module, String.split(args, ~r/\s/))
+  def dispatch!(module, raw) when is_binary(raw) do
+    commands = module.__commands__()
+    maybe_spec = Enum.reduce_while(commands, nil, &try_parse_command_name(&1, &2, raw))
+
+    case maybe_spec do
+      %Command{} = spec -> dispatch!(spec, raw)
+      nil -> raise "Failed to parse command #{inspect(raw)}"
+    end
   end
 
-  def dispatch!(module, args) when is_list(args) do
-    cmd =
-      Enum.find(module.__commands__(), fn %{name: n} ->
-        to_string(n) == List.first(args)
-      end)
+  defp try_parse_command_name(spec, acc, raw) do
+    alias Nexus.Parser.DSL
 
-    if cmd do
-      dispatch!(cmd, args)
-    else
-      raise "Command #{hd(args)} not found in #{module}"
+    case DSL.literal(raw, spec.name) do
+      {:ok, _} -> {:halt, spec}
+      {:error, _} -> {:cont, acc}
     end
   end
 end

@@ -118,7 +118,8 @@ defmodule Nexus do
       def __commands__, do: @commands
 
       def run(args) do
-        Nexus.CommandDispatcher.dispatch!(__MODULE__, args)
+        raw = Enum.join(args, " ")
+        Nexus.CommandDispatcher.dispatch!(__MODULE__, raw)
       end
 
       @spec parse(list(binary)) :: {:ok, Nexus.CLI.t()} | {:error, atom}
