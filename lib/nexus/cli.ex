@@ -22,9 +22,13 @@ defmodule Nexus.CLI do
     acc = {%{}, raw}
 
     {cli, _raw} =
-      Enum.reduce(cmds, acc, fn spec, {cli, raw} ->
-        input = Parser.run!(raw, spec)
-        {Map.put(cli, spec.name, input), raw}
+      Enum.reduce_while(cmds, acc, fn spec, {cli, raw} ->
+        try do
+          input = Parser.run!(raw, spec)
+          {:halt, {Map.put(cli, spec.name, input), raw}}
+        rescue
+          _ -> {:cont, {cli, raw}}
+        end
       end)
 
     {:ok, struct(module, cli)}

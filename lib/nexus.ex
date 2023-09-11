@@ -132,7 +132,13 @@ defmodule Nexus do
 
       @spec parse(list(binary)) :: {:ok, Nexus.CLI.t()} | {:error, atom}
       def parse(args \\ System.argv()) do
-        Nexus.CLI.build(args, __MODULE__)
+        if is_list(args) do
+          args
+          |> Enum.join(" ")
+          |> Nexus.CLI.build(__MODULE__)
+        else
+          Nexus.CLI.build(args, __MODULE__)
+        end
       end
     end
   end
