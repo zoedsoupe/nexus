@@ -8,10 +8,9 @@ defmodule Nexus do
 
   To define a command you need to name it and pass some options:
 
-  - `:type`: the argument type to be parsed to. It can be `:string` (default),
-  `:integer`, `:float` or `:atom`. The absense of this option
+  - `:type`: the argument type to be parsed to. The absense of this option
   will define a command without arguments, which can be used to define a subcommand
-  group.
+  group. See more on the [Types](#types) section.
   - `:required`: defines if the presence of the command is required or not. All commands are required by default. If you define a command as not required, you also need to define a default value.
   - `:default`: defines a default value for the command. It can be any term, but it must be of the same type as the `:type` option.
 
@@ -31,6 +30,15 @@ defmodule Nexus do
 
         __MODULE__.run(System.argv())
       end
+
+  ## Types
+
+  Nexus supports the following types:
+  - `:string`: parses the argument as a string. This is the default type.
+  - `:integer`: parses the argument as an integer.
+  - `:float`: parses the argument as a float.
+  - `:null`: parses the argument as a null value. This is useful to define subcommands.
+  - `{:enum, values_list}`: parses the argument as a literal, but only if it is included into the `values_list` list. Note that current it only support string values.
   """
 
   @type command :: Nexus.Command.t()
@@ -72,7 +80,7 @@ defmodule Nexus do
   """
   defmacro help do
     quote do
-      Nexus.defcommand(:help, type: :string, required?: false)
+      Nexus.defcommand(:help, type: :null)
 
       @impl Nexus.CLI
       def handle_input(:help, _args) do
@@ -145,8 +153,8 @@ defmodule Nexus do
 
     """
     #{banner}
-    COMMANDS:\n
-    #{Enum.map_join(cmds, "\n", &"  #{elem(&1, 0)} - ")}
+    COMMANDS:
+    #{Enum.map_join(cmds, "\n", &"  #{&1.name} - ")}
     """
   end
 
@@ -154,7 +162,8 @@ defmodule Nexus do
     opts
     |> Keyword.put(:name, cmd_name)
     |> Keyword.put(:module, module)
-    |> Keyword.put_new(:required?, false)
+    |> Keyword.put_new(:required, false)
+    |> Keyword.put_new(:type, :string)
     |> Nexus.Command.parse!()
   end
 end

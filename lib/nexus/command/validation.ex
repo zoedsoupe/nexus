@@ -9,6 +9,8 @@ defmodule Nexus.Command.Validation do
   @supported_types Application.compile_env!(:nexus, :supported_types)
 
   @spec validate_type(map) :: map
+  def validate_type(%{type: {:enum, _}} = attrs), do: attrs
+
   def validate_type(%{type: type} = attrs) do
     if type in @supported_types do
       attrs
@@ -33,7 +35,7 @@ defmodule Nexus.Command.Validation do
     default = Map.get(attrs, :default)
 
     cond do
-      !default ->
+      !default and type != :null ->
         raise ArgumentError, "Non required commands must have a default value"
 
       !is_same_type(default, type) ->

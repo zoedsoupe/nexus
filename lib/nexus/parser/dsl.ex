@@ -23,6 +23,10 @@ defmodule Nexus.Parser.DSL do
     consume(input, ~r/\b#{lit}\b/)
   end
 
+  def enum(input, values) do
+    consume(input, ~r/\b(#{Enum.join(values, "|")})\b/)
+  end
+
   defp consume(input, regex) do
     if Regex.match?(regex, input) do
       cap = hd(Regex.run(regex, input, capture: :first))

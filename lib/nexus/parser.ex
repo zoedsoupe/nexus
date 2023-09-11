@@ -19,6 +19,13 @@ defmodule Nexus.Parser do
     end
   end
 
+  defp parse_command(input, %Command{type: {:enum, values}} = cmd) do
+    with {:ok, {_, rest}} <- literal(input, cmd.name),
+         {:ok, value} <- maybe_parse_required(cmd, fn -> enum(rest, values) end) do
+      {:ok, Input.parse!(value, input)}
+    end
+  end
+
   defp parse_command(input, %Command{type: :null} = cmd) do
     with {:ok, {_, rest}} <- literal(input, cmd.name) do
       {:ok, Input.parse!(nil, rest)}
