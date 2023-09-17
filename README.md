@@ -52,6 +52,8 @@ defmodule MyCLI do
 end
 ```
 
+More different ways to use this library can be found on the [examples](./examples) folder
+
 ## Why "Nexus"
 
 Nexus is a connection from two different worlds! This library connects the world of CLIs with the magic world of `Elixir`!
