@@ -15,7 +15,7 @@ defmodule Escript.Example do
 
   use Nexus
 
-  defcommand :foo, required: true, type: :string
+  defcommand :foo, required: true, type: :string, doc: "Command that receives a string as argument and prints it."
 
   @impl true
   def version, do: "0.1.0"

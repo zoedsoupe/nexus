@@ -6,6 +6,17 @@ defmodule Nexus.Command.Validation do
   alias Nexus.Command.MissingType
   alias Nexus.Command.NotSupportedType
 
+  @spec validate_required(map, atom, (any -> boolean)) :: map
+  def validate_required(%{name: name} = attrs, field, valid_type?) do
+    value = Map.get(attrs, field)
+
+    if value && valid_type?.(value) do
+      attrs
+    else
+      raise ArgumentError, "Missing or invalid value for #{field} field in command #{name}"
+    end
+  end
+
   @supported_types Application.compile_env!(:nexus, :supported_types)
 
   @spec validate_type(map) :: map
@@ -30,7 +41,7 @@ defmodule Nexus.Command.Validation do
     end
   end
 
-  @spec validate_name(map) :: map
+  @spec validate_default(map) :: map
   def validate_default(%{required: false, type: type, name: name} = attrs) do
     default = Map.get(attrs, :default)
 

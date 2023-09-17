@@ -80,7 +80,7 @@ defmodule Nexus do
   """
   defmacro help do
     quote do
-      Nexus.defcommand(:help, type: :null)
+      Nexus.defcommand(:help, type: :null, doc: "Prints this help message.")
 
       @impl Nexus.CLI
       def handle_input(:help, _args) do
@@ -160,7 +160,7 @@ defmodule Nexus do
     """
     #{banner}
     COMMANDS:
-    #{Enum.map_join(cmds, "\n", &"  #{&1.name} - ")}
+    #{Enum.map_join(cmds, "\n", fn cmd -> "  #{cmd.name} - #{cmd.doc}" end)}
     """
   end
 
