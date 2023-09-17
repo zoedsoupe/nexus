@@ -19,13 +19,6 @@ defmodule Nexus.Parser do
     end
   end
 
-  defp parse_command(input, %Command{type: {:enum, values}} = cmd) do
-    with {:ok, {_, rest}} <- literal(input, cmd.name),
-         {:ok, value} <- maybe_parse_required(cmd, fn -> enum(rest, values) end) do
-      {:ok, Input.parse!(value, input)}
-    end
-  end
-
   defp parse_command(input, %Command{type: :null} = cmd) do
     with {:ok, {_, rest}} <- literal(input, cmd.name) do
       {:ok, Input.parse!(nil, rest)}
@@ -69,6 +62,20 @@ defmodule Nexus.Parser do
     end
   end
 
+  defp parse_command(input, %Command{type: {:enum, values}} = cmd) do
+    with {:ok, {_, rest}} <- literal(input, cmd.name),
+         {:ok, value} <- maybe_parse_required(cmd, fn -> enum(rest, values) end) do
+      value =
+        cond do
+          is_binary(hd(values)) -> value
+          is_atom(value) -> value
+          true -> string_to!(value, :atom)
+        end
+
+      {:ok, Input.parse!(value, input)}
+    end
+  end
+
   @spec string_to!(binary, atom) :: term
   defp string_to!(raw, :integer) do
     case Integer.parse(raw) do
@@ -89,7 +96,8 @@ defmodule Nexus.Parser do
     String.to_atom(raw)
   end
 
-  @spec maybe_parse_required(Command.t(), function) :: {:ok, term} | {:error, term}
+  @spec maybe_parse_required(Command.t(), (() -> {:ok, {binary, binary} | {:error, term}})) ::
+          {:ok, term} | {:error, term}
   defp maybe_parse_required(%Command{required: true}, fun) do
     with {:ok, {value, _}} <- fun.() do
       {:ok, value}
