@@ -38,7 +38,7 @@ defmodule Nexus do
   - `:integer`: parses the argument as an integer.
   - `:float`: parses the argument as a float.
   - `:null`: parses the argument as a null value. This is useful to define subcommands.
-  - `{:enum, values_list}`: parses the argument as a literal, but only if it is included into the `values_list` list. Note that current it only support string values.
+  - `{:enum, values_list}`: parses the argument as a literal, but only if it is included into the `values_list` list. Note that current it only support string or atom values.
   """
 
   @type command :: Nexus.Command.t()
@@ -80,7 +80,7 @@ defmodule Nexus do
   """
   defmacro help do
     quote do
-      Nexus.defcommand(:help, type: :null)
+      Nexus.defcommand(:help, type: :null, doc: "Prints this help message.")
 
       @impl Nexus.CLI
       def handle_input(:help, _args) do
@@ -160,7 +160,7 @@ defmodule Nexus do
     """
     #{banner}
     COMMANDS:
-    #{Enum.map_join(cmds, "\n", &"  #{&1.name} - ")}
+    #{Enum.map_join(cmds, "\n", fn cmd -> "  #{cmd.name} - #{cmd.doc}" end)}
     """
   end
 

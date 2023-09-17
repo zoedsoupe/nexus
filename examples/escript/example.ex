@@ -15,7 +15,8 @@ defmodule Escript.Example do
 
   use Nexus
 
-  defcommand :foo, required: true, type: :string
+  defcommand :foo, required: true, type: :string, doc: "Command that receives a string as argument and prints it."
+  defcommand :fizzbuzz, type: {:enum, ~w(fizz buzz)a}, doc: "Fizz bUZZ", required: true
 
   @impl true
   def version, do: "0.1.0"
@@ -23,6 +24,14 @@ defmodule Escript.Example do
   @impl true
   def handle_input(:foo, input) do
     IO.puts(inspect(input))
+  end
+
+  def handle_input(:fizzbuzz, %{value: :fizz}) do
+    IO.puts("buzz")
+  end
+
+  def handle_input(:fizzbuzz, %{value: :buzz}) do
+    IO.puts("fizz")
   end
 
   Nexus.help()
