@@ -8,11 +8,13 @@ defmodule Nexus.CLI do
 
   @callback version :: String.t()
   @callback banner :: String.t()
+  @callback handle_input(cmd) :: :ok
+            when cmd: atom
   @callback handle_input(cmd, args) :: :ok
             when cmd: atom,
-                 args: list
+                 args: Nexus.Command.Input.t()
 
-  @optional_callbacks banner: 0, handle_input: 2
+  @optional_callbacks banner: 0, handle_input: 2, handle_input: 1
 
   @type t :: map
 
