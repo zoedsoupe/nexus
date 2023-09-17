@@ -8,7 +8,14 @@ defmodule Nexus.CommandDispatcher do
 
   def dispatch!(%Command{} = spec, raw) do
     input = Parser.run!(raw, spec)
-    spec.module.handle_input(spec.name, input)
+
+    case {spec.type, input.value} do
+      {:null, nil} ->
+        :ok = spec.module.handle_input(spec.name)
+
+      _ ->
+        :ok = spec.module.handle_input(spec.name, input)
+    end
   end
 
   def dispatch!(module, raw) when is_binary(raw) do
