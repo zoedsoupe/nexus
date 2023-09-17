@@ -16,7 +16,7 @@ defmodule Nexus.Command do
         }
 
   @enforce_keys ~w(module type name)a
-  defstruct module: nil, required: true, type: nil, name: nil, default: nil, doc: ""
+  defstruct module: nil, required: true, type: :string, name: nil, default: nil, doc: ""
 
   @spec parse!(keyword) :: Nexus.Command.t()
   def parse!(attrs) do

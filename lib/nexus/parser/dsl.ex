@@ -24,14 +24,15 @@ defmodule Nexus.Parser.DSL do
   end
 
   def enum(input, values) do
-    consume(input, ~r/\b(#{Enum.join(values, "|")})\b/)
+    consume(input, ~r/\b(#{Enum.join(values, "|")}){1}\b/)
   end
 
   defp consume(input, regex) do
     if Regex.match?(regex, input) do
-      cap = hd(Regex.run(regex, input, capture: :first))
+      cap = List.first(Regex.run(regex, input, capture: :first) || [])
       rest = Regex.replace(regex, input, "")
-      {:ok, {cap, rest}}
+
+      (cap && {:ok, {cap, rest}}) || {:error, :no_match}
     else
       {:error, input}
     end
