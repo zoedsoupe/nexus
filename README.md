@@ -26,22 +26,36 @@ An `Elixir` library to write command line apps in a cleaner and elegant way!
 defmodule MyCLI do
   use Nexus
 
-  @doc """
-  Answer "fizz" on "buzz" input and "buzz" on "fizz" input.
-  """
-  defcommand :fizzbuzz, type: {:enum, ["fizz", "buzz"]}, required?: true
+  defcommand :ping, type: :null, doc: "Answers 'pong'"
+  defcommand :fizzbuzz, type: :integer, required: true, doc: "Plays fizzbuzz"
+  defcommand :mode, type: {:enum, ~w[fast slow]a}, required: true, doc: "Defines the command mode"
+
+  @impl Nexus.CLI
+  # no input as type == :null
+  def handle_input(:ping), do: IO.puts("pong")
 
   @impl Nexus.CLI
   # input can be named to anything
   @spec handle_input(atom, input) :: :ok
         when input: Nexus.Command.Input.t()
   def handle_input(:fizzbuzz, %{value: value}) do
-    # logic to answer "fizz" or "buzz"
-    :ok
+    cond do
+      rem(value, 3) -> IO.puts("fizz")
+      rem(value, 5) -> IO.puts("buzz")
+      rem(value, 3) and rem(value, 5) -> IO.puts("fizzbuzz")
+      true -> IO.puts value
+    end
   end
+
+  def handle_input(:mode, %{value: :fast), do: IO.puts "Hare"
+  def handle_input(:mode, %{value: :slow), do: IO.puts "Tortoise"
 end
 ```
 
 ## Why "Nexus"
 
 Nexus is a connection from two different worlds! This library connects the world of CLIs with the magic world of `Elixir`!
+
+## Inspirations
+
+Highly inspired in [clap-rs](https://github.com/clap-rs/clap/)
