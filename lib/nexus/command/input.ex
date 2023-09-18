@@ -4,10 +4,10 @@ defmodule Nexus.Command.Input do
   on commands dispatched
   """
 
-  @type t :: %__MODULE__{value: term, raw: binary}
+  @type t :: %__MODULE__{value: term, raw: binary, subcommand: atom}
 
   @enforce_keys ~w(value raw)a
-  defstruct value: nil, raw: nil
+  defstruct value: nil, raw: nil, subcommand: nil
 
   @spec parse!(term, binary) :: Nexus.Command.Input.t()
   def parse!(value, raw) do
