@@ -46,8 +46,9 @@ defmodule Nexus do
   defmacro __using__(_opts) do
     quote do
       Module.register_attribute(__MODULE__, :commands, accumulate: true)
+      Module.register_attribute(__MODULE__, :subcommands, accumulate: true)
 
-      import Nexus, only: [defcommand: 2]
+      import Nexus, only: [defcommand: 2, defcommand: 3]
       require Nexus
 
       @behaviour Nexus.CLI
@@ -65,8 +66,30 @@ defmodule Nexus do
   """
   @spec defcommand(atom, keyword) :: Macro.t()
   defmacro defcommand(cmd, opts) do
-    quote do
+    quote location: :keep do
       @commands Nexus.__make_command__!(__MODULE__, unquote(cmd), unquote(opts))
+    end
+  end
+
+  defmacro defcommand(cmd, opts, do: ast) do
+    subcommands = build_subcommands(ast)
+
+    quote location: :keep do
+      @commands Nexus.__make_command__!(
+                  __MODULE__,
+                  unquote(cmd),
+                  Keyword.put(unquote(opts), :subcommands, unquote(subcommands))
+                )
+    end
+  end
+
+  defp build_subcommands({:__block__, _, subs}) do
+    Enum.map(subs, &build_subcommands/1)
+  end
+
+  defp build_subcommands({:defcommand, _, [cmd, opts]}) do
+    quote do
+      Nexus.__make_command__!(__MODULE__, unquote(cmd), unquote(opts))
     end
   end
 

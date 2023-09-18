@@ -14,8 +14,28 @@ defmodule Nexus.Parser do
     |> String.trim_leading()
     |> parse_command(cmd)
     |> case do
-      {:ok, input} -> input
-      {:error, _} -> raise Error, "Failed to parse command #{inspect(cmd)}"
+      {:ok, input} ->
+        input
+
+      {:error, _} ->
+        raise Error, "Failed to parse command #{inspect(cmd)}"
+
+      :error ->
+        raise Error,
+              "Failed to parse command #{inspect(cmd)} with subcommands #{inspect(cmd.subcommands)}"
+    end
+  end
+
+  defp parse_subcommand(input, cmd) do
+    case parse_command(input, cmd) do
+      {:ok, input} -> {:halt, {:ok, Map.put(input, :subcommand, cmd.name)}}
+      {:error, _} -> {:cont, :error}
+    end
+  end
+
+  defp parse_command(input, %Command{type: :null, subcommands: [_ | _] = subs} = cmd) do
+    with {:ok, {_, rest}} <- literal(input, cmd.name) do
+      Enum.reduce_while(subs, :error, fn sub, _acc -> parse_subcommand(rest, sub) end)
     end
   end
 
