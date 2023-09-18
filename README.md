@@ -40,9 +40,9 @@ defmodule MyCLI do
         when input: Nexus.Command.Input.t()
   def handle_input(:fizzbuzz, %{value: value}) do
     cond do
-      rem(value, 3) -> IO.puts("fizz")
-      rem(value, 5) -> IO.puts("buzz")
-      rem(value, 3) and rem(value, 5) -> IO.puts("fizzbuzz")
+      rem(value, 3) == 0 -> IO.puts("fizz")
+      rem(value, 5) == 0 -> IO.puts("buzz")
+      rem(value, 3) == 0 and rem(value, 5) == 0 -> IO.puts("fizzbuzz")
       true -> IO.puts value
     end
   end
@@ -51,6 +51,8 @@ defmodule MyCLI do
   def handle_input(:mode, %{value: :slow), do: IO.puts "Tortoise"
 end
 ```
+
+More different ways to use this library can be found on the [examples](./examples) folder
 
 ## Why "Nexus"
 
