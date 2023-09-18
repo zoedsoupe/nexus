@@ -18,6 +18,10 @@ defmodule Escript.Example do
   defcommand :foo, required: true, type: :string, doc: "Command that receives a string as argument and prints it."
   defcommand :fizzbuzz, type: {:enum, ~w(fizz buzz)a}, doc: "Fizz bUZZ", required: true
 
+  defcommand :foo_bar, type: :null, doc: "Teste" do
+    defcommand :foo, default: "hello", doc: "Hello"
+    defcommand :bar, default: "hello", doc: "Hello"
+  end
 
   @impl true
   def version, do: "0.1.0"
@@ -33,6 +37,16 @@ defmodule Escript.Example do
 
   def handle_input(:fizzbuzz, %{value: :buzz}) do
     IO.puts("fizz")
+  end
+
+  def handle_input(:foo_bar, %{value: _, subcommand: :foo}) do
+    # do something wth "foo" value
+    :ok
+  end
+
+  def handle_input(:foo_bar, %{value: _, subcommand: :bar}) do
+    # do something wth "bar" value
+    :ok
   end
 
   Nexus.help()

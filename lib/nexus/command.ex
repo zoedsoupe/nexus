@@ -12,11 +12,18 @@ defmodule Nexus.Command do
           required: boolean,
           name: atom,
           default: term,
-          doc: String.t()
+          doc: String.t(),
+          subcommands: [Nexus.Command.t()]
         }
 
   @enforce_keys ~w(module type name)a
-  defstruct module: nil, required: true, type: :string, name: nil, default: nil, doc: ""
+  defstruct module: nil,
+            required: true,
+            type: :string,
+            name: nil,
+            default: nil,
+            doc: "",
+            subcommands: []
 
   @spec parse!(keyword) :: Nexus.Command.t()
   def parse!(attrs) do
