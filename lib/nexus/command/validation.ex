@@ -17,7 +17,7 @@ defmodule Nexus.Command.Validation do
     end
   end
 
-  @supported_types Application.compile_env!(:nexus, :supported_types)
+  @supported_types ~w(string atom integer float null enum)a
 
   @spec validate_type(map) :: map
   def validate_type(%{type: {:enum, values}} = attrs) do

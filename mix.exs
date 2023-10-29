@@ -1,12 +1,12 @@
 defmodule Nexus.MixProject do
   use Mix.Project
 
-  @version "0.4.0"
+  @version "0.4.2"
   @source_url "https://github.com/zoedsoupe/nexus"
 
   def project do
     [
-      app: :nexus,
+      app: :nexus_cli,
       version: @version,
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
