@@ -16,7 +16,7 @@ defmodule Nexus.Parser.DSL do
   end
 
   def string(input) do
-    consume(input, ~r/[a-zA-Z]+/)
+    consume(input, ~r/\w+/)
   end
 
   def literal(input, lit) do
