@@ -1,53 +1,41 @@
 {
-  outputs = {nixpkgs, ...}: let
-    systems = {
-      linux = "x86_64-linux";
-      darwin = "aarch64-darwin";
-    };
-
-    pkgs = system:
-      import nixpkgs {
-        inherit system;
-        config.allowUnfree = true;
-      };
-
-    inputs = sys:
-      with pkgs sys;
-        lib.optional stdenv.isLinux [
-          inotify-tools
-          gtk-engine-murrine
-        ]
-        ++ lib.optional stdenv.isDarwin [
-          darwin.apple_sdk.frameworks.CoreServices
-          darwin.apple_sdk.frameworks.CoreFoundation
-        ];
-
-    name = "nexus";
-  in {
-    applications."${systems.linux}".pescarte = let
-      inherit (pkgs systems.linux) beam;
-      beamPackages = beam.packagesWith beam.interpreters.erlang;
-    in
-      beamPackages.buildMix {
-        inherit name;
-        version = "0.1.0";
-        src = ./.;
-        postBuild = "mix do deps.loadpaths --no-deps-check";
-        beamDeps = [];
-      };
-
-    devShells = {
-      "${systems.linux}".default = with pkgs systems.linux;
-        mkShell {
-          inherit name;
-          buildInputs = inputs systems.linux;
-        };
-
-      "${systems.darwin}".default = with pkgs systems.darwin;
-        mkShell {
-          inherit name;
-          buildInputs = inputs systems.darwin;
-        };
-    };
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    systems.url = "github:nix-systems/default";
   };
+
+  outputs = {
+    flake-parts,
+    systems,
+    ...
+  } @ inputs:
+    flake-parts.lib.mkFlake {inherit inputs;} {
+      systems = import systems;
+      perSystem = {
+        pkgs,
+        system,
+        ...
+      }: let
+        inherit (pkgs.beam.interpreters) erlang_27;
+        inherit (pkgs.beam) packagesWith;
+        beam = packagesWith erlang_27;
+      in {
+        _module.args.pkgs = import inputs.nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+        };
+        devShells.default = with pkgs;
+          mkShell {
+            name = "nexus";
+            packages = with pkgs;
+              [beam.elixir_1_17]
+              ++ lib.optional stdenv.isLinux [inotify-tools]
+              ++ lib.optional stdenv.isDarwin [
+                darwin.apple_sdk.frameworks.CoreServices
+                darwin.apple_sdk.frameworks.CoreFoundation
+              ];
+          };
+      };
+    };
 }

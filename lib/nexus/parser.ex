@@ -116,7 +116,7 @@ defmodule Nexus.Parser do
     String.to_atom(raw)
   end
 
-  @spec maybe_parse_required(Command.t(), (() -> {:ok, {binary, binary} | {:error, term}})) ::
+  @spec maybe_parse_required(Command.t(), (-> {:ok, {binary, binary} | {:error, term}})) ::
           {:ok, term} | {:error, term}
   defp maybe_parse_required(%Command{required: true}, fun) do
     with {:ok, {value, _}} <- fun.() do
