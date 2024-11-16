@@ -45,7 +45,7 @@ defmodule Nexus.ParserTest do
 
   test "fails on unknown subcommand" do
     input = "file unknown_command"
-    assert {:error, ["Unknown subcommand: unknown_command"]} = Parser.parse_ast(@ast, input)
+    assert {:error, "Unknown subcommand: unknown_command"} = Parser.parse_ast(@ast, input)
   end
 
   test "fails on missing required arguments" do

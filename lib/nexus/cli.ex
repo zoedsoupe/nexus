@@ -252,45 +252,4 @@ defmodule Nexus.CLI do
       end
     end
   end
-
-  # Function to display help based on the CLI AST
-  def __display_help__(commands) do
-    IO.puts("\nAvailable Commands:")
-
-    Enum.each(commands, fn cmd ->
-      IO.puts("  #{cmd.name} - #{cmd.description || "No description"}")
-
-      Enum.each(cmd.subcommands, fn subcmd ->
-        IO.puts("    #{subcmd.name} - #{subcmd.description || "No description"}")
-
-        if subcmd.flags != [] do
-          IO.puts("      Flags:")
-
-          Enum.each(subcmd.flags, fn flag ->
-            flag_desc = flag.description || "No description"
-            short = if flag.short, do: "(short: -#{flag.short})", else: ""
-            IO.puts("        --#{flag.name} #{short} - #{flag_desc}")
-          end)
-        end
-
-        if subcmd.args != [] do
-          IO.puts("      Arguments:")
-
-          Enum.each(subcmd.args, fn arg ->
-            arg_desc = if arg.required, do: "(required)", else: "(optional)"
-
-            type =
-              case arg.type do
-                {:list, type} -> "[#{type}]"
-                type -> type
-              end
-
-            IO.puts("        #{arg.name} - Type: #{inspect(type)} #{arg_desc}")
-          end)
-        end
-      end)
-    end)
-
-    IO.puts("\nUse --help or -h to display this message.")
-  end
 end

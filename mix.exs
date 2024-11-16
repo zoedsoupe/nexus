@@ -30,7 +30,6 @@ defmodule Nexus.MixProject do
 
   defp deps do
     [
-      {:nimble_parsec, "~> 1.4"},
       {:ex_doc, "~> 0.27", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false}
     ]
