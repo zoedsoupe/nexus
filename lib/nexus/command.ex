@@ -23,9 +23,9 @@ defmodule Nexus.Command do
             name: nil,
             default: nil,
             doc: "",
-            subcommands: []
+            subcommands: %{}
 
-  @spec parse!(keyword) :: Nexus.Command.t()
+  @spec parse!(keyword | map) :: t
   def parse!(attrs) do
     attrs
     |> Map.new()

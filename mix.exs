@@ -24,11 +24,13 @@ defmodule Nexus.MixProject do
     [extra_applications: [:logger]]
   end
 
-  defp elixirc_paths(:dev), do: ["lib", "examples"]
+  defp elixirc_paths(:dev), do: ["lib"]
+  defp elixirc_paths(:test), do: ["lib", "examples/poc.ex"]
   defp elixirc_paths(_), do: ["lib"]
 
   defp deps do
     [
+      {:nimble_parsec, "~> 1.4"},
       {:ex_doc, "~> 0.27", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false}
     ]

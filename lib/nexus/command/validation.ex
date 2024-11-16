@@ -17,7 +17,7 @@ defmodule Nexus.Command.Validation do
     end
   end
 
-  @supported_types ~w(string atom integer float null enum)a
+  @supported_types ~w(string atom integer float null enum nil boolean)a
 
   @spec validate_type(map) :: map
   def validate_type(%{type: {:enum, values}} = attrs) do
@@ -69,8 +69,8 @@ defmodule Nexus.Command.Validation do
     default = Map.get(attrs, :default)
 
     cond do
-      !default and type != :null ->
-        raise ArgumentError, "Non required commands must have a default value"
+      !default and type not in [:null, nil] and default != false ->
+        raise ArgumentError, "Non required commands like #{name} must have a default value"
 
       !is_same_type(default, type) ->
         raise ArgumentError, "Default value for #{name} must be of type #{type}"
@@ -90,9 +90,11 @@ defmodule Nexus.Command.Validation do
     end
   end
 
+  defp is_same_type(value, :boolean), do: is_boolean(value)
   defp is_same_type(value, :string), do: is_binary(value)
   defp is_same_type(value, :integer), do: is_integer(value)
   defp is_same_type(value, :float), do: is_float(value)
   defp is_same_type(value, :atom), do: is_atom(value)
+  defp is_same_type(nil, nil), do: true
   defp is_same_type(_, :null), do: true
 end
