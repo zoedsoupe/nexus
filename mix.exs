@@ -25,7 +25,7 @@ defmodule Nexus.MixProject do
   end
 
   defp elixirc_paths(:dev), do: ["lib"]
-  defp elixirc_paths(:test), do: ["lib", "examples/poc.ex"]
+  defp elixirc_paths(:test), do: ["lib", "examples/file_management.ex"]
   defp elixirc_paths(_), do: ["lib"]
 
   defp deps do
