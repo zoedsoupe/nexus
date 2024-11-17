@@ -29,7 +29,7 @@
           mkShell {
             name = "nexus";
             packages = with pkgs;
-              [beam.elixir_1_17]
+              [beam.elixir_1_17 erlang_27]
               ++ lib.optional stdenv.isLinux [inotify-tools]
               ++ lib.optional stdenv.isDarwin [
                 darwin.apple_sdk.frameworks.CoreServices

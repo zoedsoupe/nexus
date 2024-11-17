@@ -5,6 +5,32 @@ defmodule MyCLI do
 
   use Nexus.CLI, otp_app: :nexus_cli
 
+  defcommand :version do
+    description "Shows the version of the CLI"
+  end
+
+  defcommand :folder do
+    description "Performs folder operations like merging"
+
+    subcommand :merge do
+      description "Merges two or more directories"
+
+      value {:list, :string}, required: true, as: :targets
+
+      flag :level do
+        description "The level of the folder that will be merged"
+        value :integer, required: false
+        short :l
+      end
+
+      flag :recursive do
+        description "IF the merge should operate recursively"
+        value :boolean, required: false, default: false
+        short :rc
+      end
+    end
+  end
+
   defcommand :file do
     description "Performs file operations such as copy, move, and delete."
 
@@ -69,6 +95,28 @@ defmodule MyCLI do
   end
 
   @impl Nexus.CLI
+  def handle_input(:version, _) do
+    # `version/0` comes from Nexus.CLI or the callback this module defined
+    vsn = version()
+    IO.puts(vsn)
+  end
+
+  def handle_input([:folder, :merge], %{args: args, flags: flags}) do
+    if flags.recursive do
+      IO.puts("Recursive merging enabled")
+    end
+
+    if level = flags.level do
+      IO.puts("Set level of merging to #{level}")
+    end
+
+    Enum.each(args.targets, fn target ->
+      IO.puts("Merged #{target}")
+    end)
+
+    :ok
+  end
+
   def handle_input([:file, :copy], %{args: args, flags: flags}) do
     if flags.verbose do
       IO.puts("Copying from #{args.source} to #{args.dest}")
@@ -116,11 +164,5 @@ defmodule MyCLI do
     end)
 
     :ok
-  end
-
-  def handle_input(command, input) do
-    IO.puts("Unknown command or invalid parameters")
-    IO.inspect(command, label: "CMD")
-    IO.inspect(input, label: "INPUT")
   end
 end

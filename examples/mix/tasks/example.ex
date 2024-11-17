@@ -1,12 +1,10 @@
 defmodule Mix.Tasks.Example do
   @moduledoc """
   This is a Mix Task example using Nexus.
-  Basically, you can `use` both `Mix.Task` and `Nexus`
+  Basically, you can `use` both `Mix.Task` and `Nexus.CLI`
   modules, define your commands as usual with `defcommand/2`
   and implement others callbacks.
 
-  Then you need to call `Nexus.parse/0`, that will inject
-  both `parse/1` and `run/1` functions into your module.
   In a `Mix.Task` module, the `run/1` function will supply
   the behaviour, so you don't need to define it yourself.
 
@@ -16,9 +14,12 @@ defmodule Mix.Tasks.Example do
   """
 
   use Mix.Task
-  use Nexus
+  use Nexus.CLI, otp_app: :nexus_cli
 
-  defcommand :foo, type: :string, required: false, default: "bar", doc: "This is a foo command"
+  defcommand :foo do
+    description "This is a foo command"
+    value :string, required: false, default: "bar"
+  end
 
   @impl Nexus.CLI
   def version, do: "0.1.0"
@@ -31,6 +32,6 @@ defmodule Mix.Tasks.Example do
     IO.puts("Running :foo command...")
   end
 
-  Nexus.help()
-  Nexus.parse()
+  @impl Mix.Task
+  defdelegate run(argv), to: __MODULE__, as: :execute
 end

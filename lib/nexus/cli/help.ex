@@ -3,24 +3,31 @@ defmodule Nexus.CLI.Help do
   Provides functionality to display help messages based on the CLI AST.
   """
 
+  alias Nexus.CLI
+  alias Nexus.CLI.Command
+
   @doc """
   Displays help information for the given command path.
 
   If no command path is provided, it displays the root help.
   """
-  def display(ast, command_path \\ []) do
-    cmd = get_command(ast, command_path)
+  @spec display(CLI.t(), list(atom)) :: :ok
+  def display(%CLI{} = cli, command_path \\ []) do
+    cmd = get_command(cli, command_path)
 
     if cmd do
-      # Build the full command path
-      full_command = build_full_command(["file" | command_path])
-
-      # Program description
-      IO.puts("#{String.capitalize(full_command)} - #{cmd.description || "No description"}\n")
+      if function_exported?(cli.handler, :banner, 0) do
+        IO.puts(cli.handler.banner() <> "\n")
+      end
 
       # Build usage line
-      usage = build_usage_line(full_command, cmd)
+      usage = build_usage_line(cli.name, command_path, cmd)
       IO.puts("Usage: #{usage}\n")
+
+      # Display description of the command
+      if cmd.description do
+        IO.puts("#{cmd.description}\n")
+      end
 
       # Display subcommands, arguments, and options
       display_subcommands(cmd)
@@ -29,7 +36,9 @@ defmodule Nexus.CLI.Help do
 
       # Final note
       if cmd.subcommands != [] do
-        IO.puts("Use '#{full_command} [COMMAND] --help' for more information on a command.")
+        IO.puts(
+          "\nUse '#{cli.name} #{Enum.join(command_path, " ")} [COMMAND] --help' for more information on a command."
+        )
       end
     else
       IO.puts("Command not found")
@@ -38,23 +47,31 @@ defmodule Nexus.CLI.Help do
 
   ## Helper Functions
 
-  # Builds the full command string from the command path
-  defp build_full_command(command_path) do
-    Enum.join(command_path, " ")
-  end
-
   # Retrieves the command based on the command path
-  defp get_command(ast, command_path) do
-    root_cmd = Enum.at(ast, 0)
-    get_subcommand(root_cmd, command_path)
+  defp get_command(%CLI{} = cli, []) do
+    %Command{
+      name: cli.name,
+      description: cli.description,
+      subcommands: cli.spec,
+      flags: [],
+      args: []
+    }
   end
 
-  defp get_subcommand(cmd, []), do: cmd
+  defp get_command(%CLI{} = cli, [root | rest]) do
+    if root_cmd = Enum.find(cli.spec, &(&1.name == root)) do
+      get_subcommand(root_cmd, rest)
+    else
+      nil
+    end
+  end
+
+  defp get_subcommand(cmd, []) do
+    cmd
+  end
 
   defp get_subcommand(cmd, [name | rest]) do
-    subcmd = Enum.find(cmd.subcommands, &(&1.name == name))
-
-    if subcmd do
+    if subcmd = Enum.find(cmd.subcommands || [], &(&1.name == name)) do
       get_subcommand(subcmd, rest)
     else
       nil
@@ -62,18 +79,23 @@ defmodule Nexus.CLI.Help do
   end
 
   # Builds the usage line for the help output
-  defp build_usage_line(full_command, cmd) do
-    parts = [full_command]
+  defp build_usage_line(cli_name, command_path, cmd) do
+    parts = [cli_name | Enum.map(command_path, &Atom.to_string/1)]
 
     # Include options
     parts = if cmd.flags != [], do: parts ++ ["[OPTIONS]"], else: parts
 
     # Include subcommands
-    parts = if cmd.subcommands != [], do: parts ++ ["[COMMAND]"], else: parts
+    parts =
+      if cmd.subcommands != [] do
+        parts ++ ["[COMMAND]"]
+      else
+        parts
+      end
 
     # Include arguments
     arg_strings =
-      Enum.map(cmd.args, fn arg ->
+      Enum.map(cmd.args || [], fn arg ->
         if arg.required, do: "<#{arg.name}>", else: "[#{arg.name}]"
       end)
 
@@ -88,8 +110,10 @@ defmodule Nexus.CLI.Help do
       IO.puts("Commands:")
 
       Enum.each(cmd.subcommands, fn subcmd ->
-        IO.puts("  #{subcmd.name}  #{subcmd.description || "No description"}\n")
+        IO.puts("  #{subcmd.name}  #{subcmd.description || "No description"}")
       end)
+
+      IO.puts("")
     end
   end
 
@@ -99,26 +123,31 @@ defmodule Nexus.CLI.Help do
       IO.puts("Arguments:")
 
       Enum.each(cmd.args, &display_arg/1)
+
+      IO.puts("")
     end
   end
 
   defp display_arg(arg) do
     arg_name = if arg.required, do: "<#{arg.name}>", else: "[#{arg.name}]"
-    IO.puts("  #{arg_name}\tType: #{format_arg_type(arg.type)}\n")
+    IO.puts("  #{arg_name}  Type: #{format_arg_type(arg.type)}")
   end
 
   # Displays options (flags), including the help option
   defp display_options(cmd) do
-    IO.puts("Options:")
+    all_flags = cmd.flags || []
 
-    Enum.each(cmd.flags, fn flag ->
-      short = if flag.short, do: "-#{flag.short}, ", else: "    "
-      type = if flag.type != :boolean, do: " <#{String.upcase(to_string(flag.type))}>", else: ""
-      IO.puts("  #{short}--#{flag.name}#{type}\t#{flag.description || "No description"}")
-    end)
+    if all_flags != [] do
+      IO.puts("Options:")
 
-    # Include help option
-    IO.puts("  -h, --help\tPrint help information\n")
+      Enum.each(all_flags, &display_option/1)
+    end
+  end
+
+  defp display_option(flag) do
+    short = if flag.short, do: "-#{flag.short}, ", else: "    "
+    type = if flag.type != :boolean, do: " <#{String.upcase(to_string(flag.type))}>", else: ""
+    IO.puts("  #{short}--#{flag.name}#{type}  #{flag.description || "No description"}")
   end
 
   # Formats the argument type for display

@@ -8,8 +8,13 @@ defmodule Nexus.CLI do
 
   alias Nexus.CLI.Argument
   alias Nexus.CLI.Command
+  alias Nexus.CLI.Dispatcher
   alias Nexus.CLI.Flag
+  alias Nexus.CLI.Help
   alias Nexus.CLI.Input
+  alias Nexus.CLI.Validation.ValidationError
+
+  alias Nexus.Parser
 
   @typedoc "Represents the CLI spec, basically a list of `Command.t()` spec"
   @type ast :: list(Command.t())
@@ -36,6 +41,19 @@ defmodule Nexus.CLI do
   Default implementation fetches from the `mix.exs`
   """
   @callback version :: String.t()
+
+  @doc """
+  Sets the CLI description
+
+  Default implementation fetches from `@moduledoc`, however
+  take in account that if you're compiling your app as an escript
+  or single binary (rg. burrito) the `@moduledoc` attribute may be
+  not available on runtime
+
+  Fetch module documentation on compile-time is marked to Elixir 2.0
+  check https://github.com/elixir-lang/elixir/issues/8095
+  """
+  @callback description :: String.t()
 
   @doc """
   Custom banners can be set
@@ -65,12 +83,34 @@ defmodule Nexus.CLI do
 
   @optional_callbacks banner: 0
 
+  @type t :: %__MODULE__{
+          otp_app: atom,
+          name: atom,
+          spec: ast,
+          version: String.t(),
+          description: String.t(),
+          handler: module
+        }
+
+  defstruct [:name, :spec, :version, :description, :handler, :otp_app]
+
   defmodule Input do
-    @moduledoc "Representa a command input, with args and flags values parsed"
+    @moduledoc """
+    Represents a command input, with args and flags values parsed
 
-    @type t :: %__MODULE__{flags: %{atom => term}, args: %{atom => term}}
+    - `flags` is a map with keys as flags names and values as flags values
+    - `args` is a map of positional arguments where keys are the arguments
+    names defined with the `:as` option on the `value/2` macro
+    - `value` is a single value term that represents the command value itself
 
-    defstruct [:flags, :args]
+    If the command define multiple (positional) arguments, `value` will be `nil`
+    and `args` willbe populated, otherwise `args` will be an empty map and `value`
+    will be populated
+    """
+
+    @type t :: %__MODULE__{flags: %{atom => term}, args: %{atom => term}, value: term | nil}
+
+    defstruct [:flags, args: %{}, value: nil]
   end
 
   defmodule Command do
@@ -130,7 +170,12 @@ defmodule Nexus.CLI do
               default: nil
   end
 
-  defmacro __using__(otp_app: app) do
+  defmacro __using__(opts \\ []) when is_list(opts) do
+    mod = __CALLER__.module
+    otp_app = opts[:otp_app] || raise ValidationError, "missing :otp_app option"
+    name = String.to_atom(opts[:name] || Macro.underscore(mod))
+    cli = %__MODULE__{name: name, otp_app: otp_app}
+
     quote do
       import Nexus.CLI,
         only: [
@@ -142,6 +187,7 @@ defmodule Nexus.CLI do
           description: 1
         ]
 
+      Module.put_attribute(__MODULE__, :cli, unquote(Macro.escape(cli)))
       Module.register_attribute(__MODULE__, :cli_commands, accumulate: true)
       Module.register_attribute(__MODULE__, :cli_command_stack, accumulate: false)
       Module.register_attribute(__MODULE__, :cli_flag_stack, accumulate: false)
@@ -153,29 +199,11 @@ defmodule Nexus.CLI do
       @impl Nexus.CLI
       def version do
         vsn =
-          unquote(app)
+          unquote(otp_app)
           |> Application.spec()
           |> Keyword.get(:vsn, ~c"")
 
         for c <- vsn, into: "", do: <<c>>
-      end
-
-      @impl Nexus.CLI
-      def handle_input(cmd, %{flags: %{help: true}}) do
-        ast = __nexus_cli_commands__()
-        display_help(ast, cmd)
-        {:error, 1, nil}
-      end
-
-      def handle_input(cmd, _input) do
-        ast = __nexus_cli_commands__()
-        command_path = Enum.reject(cmd, fn c -> c == :help end)
-        display_help(ast, command_path)
-        {:error, 1, nil}
-      end
-
-      def handle_input(_cmd, _input) do
-        {:error, 1, "Unknown command or invalid input"}
       end
 
       defoverridable version: 0
@@ -283,8 +311,7 @@ defmodule Nexus.CLI do
     existing_commands = Module.get_attribute(module, :cli_commands) || []
 
     if Enum.any?(existing_commands, &(&1.name == command.name)) do
-      raise Nexus.CLI.Validation.ValidationError,
-            "Duplicate command name: '#{command.name}'."
+      raise ValidationError, "Duplicate command name: '#{command.name}'."
     end
 
     Module.put_attribute(module, :cli_commands, command)
@@ -302,7 +329,7 @@ defmodule Nexus.CLI do
 
     # Ensure no duplicate subcommand names within the parent
     if Enum.any?(parent.subcommands, &(&1.name == subcommand.name)) do
-      raise Nexus.CLI.Validation.ValidationError,
+      raise ValidationError,
             "Duplicate subcommand name: '#{subcommand.name}' within command '#{parent.name}'."
     end
 
@@ -406,26 +433,8 @@ defmodule Nexus.CLI do
 
   defp __inject_help__(%Command{} = command) do
     command
-    |> ensure_help_subcommand()
     |> ensure_help_flag()
     |> inject_help_into_subcommands()
-  end
-
-  # Ensures that a command has the 'help' subcommand
-  defp ensure_help_subcommand(%Command{subcommands: subcommands} = command) do
-    if Enum.any?(subcommands, &(&1.name == :help)) do
-      command
-    else
-      help_subcommand = %Command{
-        name: :help,
-        description: "Displays help information for this command.",
-        subcommands: [],
-        flags: [],
-        args: []
-      }
-
-      %{command | subcommands: [help_subcommand | subcommands]}
-    end
   end
 
   # Ensures that a command has the '--help' and '-h' flags
@@ -454,63 +463,99 @@ defmodule Nexus.CLI do
 
   defmacro __before_compile__(env) do
     commands = Module.get_attribute(env.module, :cli_commands)
+    cli = Module.get_attribute(env.module, :cli)
 
     quote do
+      @impl Nexus.CLI
+      def description, do: @moduledoc
+
+      defoverridable description: 0
+
       @doc false
-      def __nexus_cli_commands__ do
-        unquote(Macro.escape(commands))
+      def __nexus_spec__ do
+        %{
+          unquote(Macro.escape(cli))
+          | description: description(),
+            spec: unquote(Macro.escape(commands)),
+            version: version(),
+            handler: __MODULE__
+        }
       end
 
       @doc """
+      Given the system `argv`, tries to parse the input
+      and dispatches the parsed command to the handler
+      module (aka `#{__MODULE__}`)
 
+      If it fails it will display the CLI help. This
+      convenience function can be used as delegated
+      of an Escript or Mix.Task module
+
+      For more information chekc `Nexus.CLI.__run_cli__`
       """
-      def run(argv) when is_list(argv) or is_binary(argv) do
+      def execute(argv) when is_list(argv) or is_binary(argv) do
         # Nexus.Parser will tokenize the whole input
         # Mix tasks already split the argv into a list
-        argv = List.wrap(argv) |> Enum.join()
-        ast = __nexus_cli_commands__()
-        Nexus.CLI.__run_cli__(__MODULE__, ast, argv)
+        argv = List.wrap(argv) |> Enum.join(" ")
+        Nexus.CLI.__run_cli__(__nexus_spec__(), argv)
       end
 
       @doc """
-      Generates CLI documentation based into the CLI spec defined
+      Prints CLI documentation based into the CLI spec defined given a command path
 
       For more information, check `Nexus.CLI.Help`
 
-      It receives the AST or an optional command path, for displaying
+      It receives an optional command path, for displaying
       subcommands help, for example
+
+      ## Examples
+
+          iex> #{inspect(__MODULE__)}.display_help()
+          # prints help for the CLI itself showing all available commands and flags
+          :ok
+
+          iex> #{inspect(__MODULE__)}.display_help([:root])
+          # prints help for the `root` cmd showing all available subcommands and flags
+          :ok
+
+          iex> #{inspect(__MODULE__)}.display_help([:root, :nested])
+          # prints help for the `root -> :nested` subcmd showing all available subcommands and flags
+          :ok
       """
-      defdelegate display_help(ast, path \\ []), to: Nexus.CLI.Help, as: :display
+      def display_help(path \\ []) do
+        alias Nexus.CLI
+        Help.display(__nexus_spec__(), path)
+      end
     end
   end
 
-  @spec __run_cli__(atom, ast, binary) :: term
-  def __run_cli__(module, ast, input) when is_list(ast) and is_binary(input) do
-    case Nexus.Parser.parse_ast(ast, input) do
-      {:ok, result} ->
-        input = %Input{flags: result.flags, args: result.args}
+  @doc """
+  Given a the CLI spec and the user input,
+  tries to parse the input against the spec and dispatches the
+  parsed result to the CLI handler module - the one that imeplement `Nexus.CLI`
+  behaviour.
 
-        unless function_exported?(module, :handle_input, 2) do
-          raise "The #{module} module doesn't implemented the handle_input/2 function"
-        end
+  If the dispatchment is successfull and the `handle_input/2` return an `:ok`,
+  then it stops the VM with a success code.
 
-        if Enum.empty?(result.command) do
-          module.handle_input(result.program, input)
-        else
-          module.handle_input([result.program | result.command], input)
-        end
-        |> case do
-          :ok ->
-            System.stop(0)
+  If there is a parsing error it will display the CLI help and stop the VM with
+  error code.
 
-          {:error, code, reason} ->
-            if reason, do: IO.puts(reason)
-            System.stop(code)
-        end
+  If `handle_input/2` returns an error, it stops the VM with the desired code.
+  """
+  @spec __run_cli__(t, binary) :: :ok
+  def __run_cli__(%__MODULE__{} = cli, input) when is_binary(input) do
+    with {:ok, result} <- Parser.parse_ast(cli, input),
+         :ok <- Dispatcher.dispatch(cli, result) do
+      System.stop(0)
+    else
+      {:error, reason} when is_list(reason) ->
+        Help.display(cli)
+        System.stop(1)
 
-      {:error, errors} = err ->
-        Enum.each(errors, &IO.puts/1)
-        err
+      {:error, {code, reason}} ->
+        if reason, do: IO.puts(reason)
+        System.stop(code)
     end
   end
 end
