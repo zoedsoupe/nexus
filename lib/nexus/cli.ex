@@ -364,7 +364,7 @@ defmodule Nexus.CLI do
     unnamed_args = Enum.filter(command.args, &(&1.name == nil))
 
     cond do
-      length(unnamed_args) == 0 ->
+      Enum.empty?(unnamed_args) ->
         # All arguments have names
         command
 

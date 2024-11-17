@@ -45,35 +45,7 @@ defmodule Nexus.Parser do
 
   defp handle_quoted_strings(tokens) do
     tokens
-    |> Enum.reduce({:ok, [], false, []}, fn token, {:ok, acc, in_quote, buffer} ->
-      cond do
-        String.starts_with?(token, "\"") and String.ends_with?(token, "\"") and
-            String.length(token) > 1 ->
-          # Token starts and ends with quotes
-          unquoted = String.slice(token, 1..-2//-1)
-          {:ok, [unquoted | acc], in_quote, buffer}
-
-        String.starts_with?(token, "\"") ->
-          # Start of a quoted string
-          unquoted = String.trim_leading(token, "\"")
-          {:ok, acc, true, [unquoted]}
-
-        String.ends_with?(token, "\"") and in_quote ->
-          # End of a quoted string
-          unquoted = String.trim_trailing(token, "\"")
-          buffer = Enum.reverse([unquoted | buffer])
-          combined = Enum.join(buffer, " ")
-          {:ok, [combined | acc], false, []}
-
-        in_quote ->
-          # Inside a quoted string
-          {:ok, acc, true, [token | buffer]}
-
-        true ->
-          # Regular token
-          {:ok, [token | acc], in_quote, buffer}
-      end
-    end)
+    |> Enum.reduce({:ok, [], false, []}, &handle_quoted_string/2)
     |> case do
       {:ok, acc, false, []} ->
         {:ok, Enum.reverse(acc)}
@@ -84,6 +56,38 @@ defmodule Nexus.Parser do
       {:error, msg} ->
         {:error, [msg]}
     end
+  end
+
+  defp handle_quoted_string(token, {:ok, acc, in_quote, buffer}) do
+    cond do
+      raw_quoted?(token) -> handle_raw_quoted(token, buffer, in_quote, acc)
+      String.starts_with?(token, "\"") -> handle_started_quoted(token, acc)
+      String.ends_with?(token, "\"") and in_quote -> handle_ended_quoted(token, buffer, acc)
+      in_quote -> {:ok, acc, true, [token | buffer]}
+      true -> {:ok, [token | acc], in_quote, buffer}
+    end
+  end
+
+  defp raw_quoted?(token) do
+    String.starts_with?(token, "\"") and String.ends_with?(token, "\"") and
+      String.length(token) > 1
+  end
+
+  defp handle_raw_quoted(token, buffer, in_quote, acc) do
+    unquoted = String.slice(token, 1..-2//-1)
+    {:ok, [unquoted | acc], in_quote, buffer}
+  end
+
+  defp handle_started_quoted(token, acc) do
+    unquoted = String.trim_leading(token, "\"")
+    {:ok, acc, true, [unquoted]}
+  end
+
+  defp handle_ended_quoted(token, buffer, acc) do
+    unquoted = String.trim_trailing(token, "\"")
+    buffer = Enum.reverse([unquoted | buffer])
+    combined = Enum.join(buffer, " ")
+    {:ok, [combined | acc], false, []}
   end
 
   ## Extraction Functions
@@ -204,15 +208,15 @@ defmodule Nexus.Parser do
 
     missing_required_flags = list_missing_required_flags(flags, defined_flags)
 
-    if not Enum.empty?(missing_required_flags) do
-      {:error, "Missing required flags: #{Enum.join(missing_required_flags, ", ")}"}
-    else
+    if Enum.empty?(missing_required_flags) do
       non_parsed_flags = list_non_parsed_flags(flags, defined_flags)
 
       {:ok,
        flags
        |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
        |> Map.merge(non_parsed_flags)}
+    else
+      {:error, "Missing required flags: #{Enum.join(missing_required_flags, ", ")}"}
     end
   end
 

@@ -98,11 +98,13 @@ defmodule Nexus.CLI.Help do
     if cmd.args != [] do
       IO.puts("Arguments:")
 
-      Enum.each(cmd.args, fn arg ->
-        arg_name = if arg.required, do: "<#{arg.name}>", else: "[#{arg.name}]"
-        IO.puts("  #{arg_name}\tType: #{format_arg_type(arg.type)}\n")
-      end)
+      Enum.each(cmd.args, &display_arg/1)
     end
+  end
+
+  defp display_arg(arg) do
+    arg_name = if arg.required, do: "<#{arg.name}>", else: "[#{arg.name}]"
+    IO.puts("  #{arg_name}\tType: #{format_arg_type(arg.type)}\n")
   end
 
   # Displays options (flags), including the help option
