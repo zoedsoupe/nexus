@@ -52,7 +52,7 @@ defmodule Nexus.CLI.Help do
   defp get_subcommand(cmd, []), do: cmd
 
   defp get_subcommand(cmd, [name | rest]) do
-    subcmd = Enum.find(cmd.subcommands, fn c -> c.name == String.to_atom(name) end)
+    subcmd = Enum.find(cmd.subcommands, &(&1.name == name))
 
     if subcmd do
       get_subcommand(subcmd, rest)

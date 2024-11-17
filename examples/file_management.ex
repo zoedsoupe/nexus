@@ -122,6 +122,5 @@ defmodule MyCLI do
     IO.puts("Unknown command or invalid parameters")
     IO.inspect(command, label: "CMD")
     IO.inspect(input, label: "INPUT")
-    :error
   end
 end

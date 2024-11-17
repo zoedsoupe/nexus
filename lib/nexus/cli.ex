@@ -160,6 +160,24 @@ defmodule Nexus.CLI do
         for c <- vsn, into: "", do: <<c>>
       end
 
+      @impl Nexus.CLI
+      def handle_input(cmd, %{flags: %{help: true}}) do
+        ast = __nexus_cli_commands__()
+        display_help(ast, cmd)
+        {:error, 1, nil}
+      end
+
+      def handle_input(cmd, _input) do
+        ast = __nexus_cli_commands__()
+        command_path = Enum.reject(cmd, fn c -> c == :help end)
+        display_help(ast, command_path)
+        {:error, 1, nil}
+      end
+
+      def handle_input(_cmd, _input) do
+        {:error, 1, "Unknown command or invalid input"}
+      end
+
       defoverridable version: 0
     end
   end
@@ -260,6 +278,7 @@ defmodule Nexus.CLI do
       command
       |> __process_command_arguments__()
       |> V.validate_command()
+      |> __inject_help__()
 
     existing_commands = Module.get_attribute(module, :cli_commands) || []
 
@@ -279,6 +298,7 @@ defmodule Nexus.CLI do
       subcommand
       |> __process_command_arguments__()
       |> V.validate_command()
+      |> __inject_help__()
 
     # Ensure no duplicate subcommand names within the parent
     if Enum.any?(parent.subcommands, &(&1.name == subcommand.name)) do
@@ -380,6 +400,58 @@ defmodule Nexus.CLI do
     end
   end
 
+  defp __inject_help__(%Command{name: :help} = command) do
+    command
+  end
+
+  defp __inject_help__(%Command{} = command) do
+    command
+    |> ensure_help_subcommand()
+    |> ensure_help_flag()
+    |> inject_help_into_subcommands()
+  end
+
+  # Ensures that a command has the 'help' subcommand
+  defp ensure_help_subcommand(%Command{subcommands: subcommands} = command) do
+    if Enum.any?(subcommands, &(&1.name == :help)) do
+      command
+    else
+      help_subcommand = %Command{
+        name: :help,
+        description: "Displays help information for this command.",
+        subcommands: [],
+        flags: [],
+        args: []
+      }
+
+      %{command | subcommands: [help_subcommand | subcommands]}
+    end
+  end
+
+  # Ensures that a command has the '--help' and '-h' flags
+  defp ensure_help_flag(%Command{flags: flags} = command) do
+    if Enum.any?(flags, &(&1.name == :help)) do
+      command
+    else
+      help_flag = %Flag{
+        name: :help,
+        short: :h,
+        type: :boolean,
+        required: false,
+        default: false,
+        description: "Prints help information."
+      }
+
+      %{command | flags: [help_flag | flags]}
+    end
+  end
+
+  # Recursively injects help into all subcommands
+  defp inject_help_into_subcommands(%Command{subcommands: subcommands} = command) do
+    updated_subcommands = Enum.map(subcommands, &__inject_help__/1)
+    %{command | subcommands: updated_subcommands}
+  end
+
   defmacro __before_compile__(env) do
     commands = Module.get_attribute(env.module, :cli_commands)
 
@@ -426,6 +498,14 @@ defmodule Nexus.CLI do
           module.handle_input(result.program, input)
         else
           module.handle_input([result.program | result.command], input)
+        end
+        |> case do
+          :ok ->
+            System.stop(0)
+
+          {:error, code, reason} ->
+            if reason, do: IO.puts(reason)
+            System.stop(code)
         end
 
       {:error, errors} = err ->
