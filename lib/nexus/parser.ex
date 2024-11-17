@@ -27,7 +27,7 @@ defmodule Nexus.Parser do
       {:ok,
        %{
          program: program_name,
-         command: command_path,
+         command: Enum.map(command_path, &String.to_existing_atom/1),
          flags: processed_flags,
          args: processed_args
        }}
@@ -89,7 +89,7 @@ defmodule Nexus.Parser do
   ## Extraction Functions
 
   defp extract_program_name([program_name | rest]) do
-    {:ok, program_name, rest}
+    {:ok, String.to_existing_atom(program_name), rest}
   end
 
   defp extract_program_name([]), do: {:error, "No program specified"}
@@ -101,7 +101,7 @@ defmodule Nexus.Parser do
   defp extract_commands([token | rest_tokens], command_path, current_ast) do
     subcommand_ast =
       Enum.find(current_ast.subcommands || [], fn cmd ->
-        cmd.name == String.to_atom(token)
+        to_string(cmd.name) == token
       end)
 
     if subcommand_ast do
@@ -125,9 +125,7 @@ defmodule Nexus.Parser do
   ## Lookup Functions
 
   defp find_program(name, ast) do
-    name_atom = String.to_atom(name)
-
-    case Enum.find(ast, &(&1.name == name_atom)) do
+    case Enum.find(ast, &(&1.name == name)) do
       nil -> {:error, "Program '#{name}' not found"}
       program -> {:ok, program}
     end
@@ -204,19 +202,33 @@ defmodule Nexus.Parser do
         end
       end)
 
-    # Check for missing required flags
-    missing_flags =
-      defined_flags
-      |> Enum.filter(fn flag ->
-        flag.required && !Map.has_key?(flags, Atom.to_string(flag.name))
-      end)
-      |> Enum.map(&Atom.to_string(&1.name))
+    missing_required_flags = list_missing_required_flags(flags, defined_flags)
 
-    if missing_flags != [] do
-      {:error, "Missing required flags: #{Enum.join(missing_flags, ", ")}"}
+    if not Enum.empty?(missing_required_flags) do
+      {:error, "Missing required flags: #{Enum.join(missing_required_flags, ", ")}"}
     else
-      {:ok, flags}
+      non_parsed_flags = list_non_parsed_flags(flags, defined_flags)
+
+      {:ok,
+       flags
+       |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
+       |> Map.merge(non_parsed_flags)}
     end
+  end
+
+  defp list_missing_required_flags(parsed, defined) do
+    defined
+    |> Enum.filter(fn flag ->
+      flag.required and not Map.has_key?(parsed, Atom.to_string(flag.name))
+    end)
+    |> Enum.map(&Atom.to_string/1)
+  end
+
+  defp list_non_parsed_flags(parsed, defined) do
+    defined
+    |> Enum.filter(&(not Map.has_key?(parsed, Atom.to_string(&1.name))))
+    |> Enum.map(&{&1.name, &1.default})
+    |> Map.new()
   end
 
   defp parse_value(value, :boolean) when is_boolean(value), do: value

@@ -6,6 +6,73 @@ defmodule Nexus.CLI do
 
   import Nexus.CLI.Validation
 
+  alias Nexus.CLI.Argument
+  alias Nexus.CLI.Command
+  alias Nexus.CLI.Flag
+  alias Nexus.CLI.Input
+
+  @typedoc "Represents the CLI spec, basically a list of `Command.t()` spec"
+  @type ast :: list(Command.t())
+
+  @typedoc "Represent all possible value types of an command argument or flag value"
+  @type value ::
+          :boolean
+          | :string
+          | :integer
+          | :float
+          | {:list, value}
+          | {:enum, list(atom | String.t())}
+
+  @typedoc """
+  Represents an final-user error while executing a command
+
+  Need to inform the return code of the program and a reason of the error
+  """
+  @type error :: {code :: integer, reason :: String.Chars.t()}
+
+  @doc """
+  Sets the version of the CLI
+
+  Default implementation fetches from the `mix.exs`
+  """
+  @callback version :: String.t()
+
+  @doc """
+  Custom banners can be set
+  """
+  @callback banner :: String.t()
+
+  @doc """
+  Function that receives the current command being used and its args
+
+  If a subcommand is being used, then the first argument will be a list
+  of atoms representing the command path
+
+  Note that when returning `:ok` from this function, your program will
+  exit with a success code, generally `0`
+
+  To inform errors, check the `Nexus.CLI.error()` type
+
+  ## Examples
+
+      @impl Nexus.CLI
+      def handle_input(:my_cmd, _), do: nil
+
+      def handle_inpu([:my, :nested, :cmd], _), do: nil
+  """
+  @callback handle_input(cmd :: atom, input :: Input.t()) :: :ok | {:error, error}
+  @callback handle_input(cmd :: list(atom), input :: Input.t()) :: :ok | {:error, error}
+
+  @optional_callbacks banner: 0
+
+  defmodule Input do
+    @moduledoc "Representa a command input, with args and flags values parsed"
+
+    @type t :: %__MODULE__{flags: %{atom => term}, args: %{atom => term}}
+
+    defstruct [:flags, :args]
+  end
+
   defmodule Command do
     @moduledoc "Represents a command or subcommand."
 
@@ -63,20 +130,7 @@ defmodule Nexus.CLI do
               default: nil
   end
 
-  alias Nexus.CLI.Argument
-  alias Nexus.CLI.Command
-  alias Nexus.CLI.Flag
-
-  @type ast :: list(Command.t())
-  @type value ::
-          :boolean
-          | :string
-          | :integer
-          | :float
-          | {:list, value}
-          | {:enum, list(atom | String.t())}
-
-  defmacro __using__(_opts) do
+  defmacro __using__(otp_app: app) do
     quote do
       import Nexus.CLI,
         only: [
@@ -93,6 +147,20 @@ defmodule Nexus.CLI do
       Module.register_attribute(__MODULE__, :cli_flag_stack, accumulate: false)
 
       @before_compile Nexus.CLI
+
+      @behaviour Nexus.CLI
+
+      @impl Nexus.CLI
+      def version do
+        vsn =
+          unquote(app)
+          |> Application.spec()
+          |> Keyword.get(:vsn, ~c"")
+
+        for c <- vsn, into: "", do: <<c>>
+      end
+
+      defoverridable version: 0
     end
   end
 
@@ -322,6 +390,17 @@ defmodule Nexus.CLI do
       end
 
       @doc """
+
+      """
+      def run(argv) when is_list(argv) or is_binary(argv) do
+        # Nexus.Parser will tokenize the whole input
+        # Mix tasks already split the argv into a list
+        argv = List.wrap(argv) |> Enum.join()
+        ast = __nexus_cli_commands__()
+        Nexus.CLI.__run_cli__(__MODULE__, ast, argv)
+      end
+
+      @doc """
       Generates CLI documentation based into the CLI spec defined
 
       For more information, check `Nexus.CLI.Help`
@@ -330,6 +409,28 @@ defmodule Nexus.CLI do
       subcommands help, for example
       """
       defdelegate display_help(ast, path \\ []), to: Nexus.CLI.Help, as: :display
+    end
+  end
+
+  @spec __run_cli__(atom, ast, binary) :: term
+  def __run_cli__(module, ast, input) when is_list(ast) and is_binary(input) do
+    case Nexus.Parser.parse_ast(ast, input) do
+      {:ok, result} ->
+        input = %Input{flags: result.flags, args: result.args}
+
+        unless function_exported?(module, :handle_input, 2) do
+          raise "The #{module} module doesn't implemented the handle_input/2 function"
+        end
+
+        if Enum.empty?(result.command) do
+          module.handle_input(result.program, input)
+        else
+          module.handle_input([result.program | result.command], input)
+        end
+
+      {:error, errors} = err ->
+        Enum.each(errors, &IO.puts/1)
+        err
     end
   end
 end

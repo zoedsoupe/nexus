@@ -3,7 +3,7 @@ defmodule MyCLI do
   MyCLI provides file operations such as copy, move, and delete using the Nexus.CLI DSL.
   """
 
-  use Nexus.CLI
+  use Nexus.CLI, otp_app: :nexus_cli
 
   defcommand :file do
     description "Performs file operations such as copy, move, and delete."
@@ -64,8 +64,7 @@ defmodule MyCLI do
     end
   end
 
-  # @impl Nexus.CLI
-  @spec handle_input([atom], map) :: :ok | {:error, any}
+  @impl Nexus.CLI
   def handle_input([:file, :copy], %{args: args, flags: flags}) do
     if flags.verbose do
       IO.puts("Copying from #{args.source} to #{args.dest}")
@@ -115,8 +114,10 @@ defmodule MyCLI do
     :ok
   end
 
-  def handle_input(_command, _params) do
+  def handle_input(command, input) do
     IO.puts("Unknown command or invalid parameters")
+    IO.inspect(command, label: "CMD")
+    IO.inspect(input, label: "INPUT")
     :error
   end
 end
