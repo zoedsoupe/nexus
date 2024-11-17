@@ -14,6 +14,10 @@ defmodule MyCLI do
       value :string, required: true, as: :source
       value :string, required: true, as: :dest
 
+      flag :level do
+        value :integer, required: false
+      end
+
       flag :verbose do
         short :v
         description "Enables verbose output."

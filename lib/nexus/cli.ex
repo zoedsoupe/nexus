@@ -4,7 +4,7 @@ defmodule Nexus.CLI do
   flags, and positional arguments using structured ASTs with structs.
   """
 
-  import Nexus.CLI.Validation
+  alias Nexus.CLI.Validation, as: V
 
   alias Nexus.CLI.Argument
   alias Nexus.CLI.Command
@@ -259,7 +259,7 @@ defmodule Nexus.CLI do
     command =
       command
       |> __process_command_arguments__()
-      |> validate_command()
+      |> V.validate_command()
 
     existing_commands = Module.get_attribute(module, :cli_commands) || []
 
@@ -278,7 +278,7 @@ defmodule Nexus.CLI do
     subcommand =
       subcommand
       |> __process_command_arguments__()
-      |> validate_command()
+      |> V.validate_command()
 
     # Ensure no duplicate subcommand names within the parent
     if Enum.any?(parent.subcommands, &(&1.name == subcommand.name)) do
@@ -353,7 +353,7 @@ defmodule Nexus.CLI do
 
     [current | rest] = Module.get_attribute(module, :cli_command_stack)
 
-    flag = validate_flag(flag)
+    flag = V.validate_flag(flag)
     flag = if flag.type == :boolean, do: Map.put_new(flag, :default, false), else: flag
 
     updated = Map.update!(current, :flags, fn flags -> [flag | flags] end)
