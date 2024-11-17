@@ -1,9 +1,5 @@
 # Nexus
 
-⚠️ This library is highly experimental and not ready for production use! Expect breaking changes! ⚠️
-
-**YOU HAVE BEEN WARNED!**
-
 ```sh
      _      __
 |\ ||_\/| |(_
@@ -18,6 +14,18 @@ An `Elixir` library to write command line apps in a cleaner and elegant way!
 [![Downloads](https://img.shields.io/hexpm/dt/nexus_cli.svg)](https://hex.pm/packages/nexus_cli)
 [![Documentation](https://img.shields.io/badge/documentation-gray)](https://hexdocs.pm/nexus_cli)
 [![ci](https://github.com/zoedsoupe/nexus/actions/workflows/ci.yml/badge.svg)](https://github.com/zoedsoupe/nexus/actions/workflows/ci.yml)
+
+## Installation
+
+Just add the `nexus_cli` package to your `mix.exs`
+
+```elixir
+def deps do
+  [
+    {:nexus_cli, "~> 0.5"}
+  ]
+end
+```
 
 ## Example
 
@@ -34,13 +42,19 @@ defmodule MyCLI do
   end
 
   @impl Nexus.CLI
-  def handle_input(:fizzbuzz, %{args: [input]}) do
-    # plays fizzbuzz
+  def handle_input(:fizzbuzz, %{value: value}) when is_integer(value) do
+    cond do
+      rem(value, 3) == 0 and rem(value, 5) == 0 -> IO.puts("fizzbuzz")
+      rem(value, 3) == 0 -> IO.puts("fizz")
+      rem(value, 5) == 0 -> IO.puts("buzz")
+      true -> IO.puts value
+    end
   end
 end
 ```
 
 More different ways to use this library can be found on the [examples](./examples) folder
+Documentation on defining a CLI module can be found at the [Nexus.CLI](https://hexdocs.pm/nexus_cli/Nexus.CLI.html)
 
 ## Why "Nexus"
 

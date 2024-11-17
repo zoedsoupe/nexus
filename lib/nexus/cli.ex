@@ -2,6 +2,165 @@ defmodule Nexus.CLI do
   @moduledoc """
   Nexus.CLI provides a macro-based DSL for defining command-line interfaces with commands,
   flags, and positional arguments using structured ASTs with structs.
+
+  ## Overview
+
+  The `Nexus.CLI` module allows you to build robust command-line applications by defining commands, subcommands, flags, and arguments using a declarative syntax. It handles parsing, validation, and dispatching of commands, so you can focus on implementing your application's logic.
+
+  ## Command Life Cycle
+
+  1. **Definition**: Use the provided macros (`defcommand`, `subcommand`, `flag`, `value`, etc.) to define your CLI's structure in a clear and organized way.
+  2. **Compilation**: During compilation, Nexus processes your definitions, builds an abstract syntax tree (AST), and validates your commands and flags.
+  3. **Parsing**: When your application runs, Nexus parses the user input (e.g., command-line arguments) against the defined AST, handling flags, arguments, and subcommands.
+  4. **Dispatching**: After successful parsing, Nexus dispatches the command to your `handle_input/2` callback, passing the parsed input.
+  5. **Execution**: You implement the `handle_input/2` function to perform the desired actions based on the command and input.
+
+  ## The `handle_input/2` Callback
+
+  The `handle_input/2` function is the core of your command's execution logic. It receives the command path and an `Nexus.CLI.Input` struct containing parsed flags and arguments.
+
+  ### Signature
+
+      @callback handle_input(cmd :: atom | list(atom), input :: Input.t()) :: :ok | {:error, error}
+
+  - `cmd`: The command or command path (list of atoms) representing the executed command or a single atom if no subcommand is provided.
+  - `input`: An `%Nexus.CLI.Input{}` struct containing `flags`, `args`, and `value`.
+
+  ### Return Values
+
+  - `:ok`: Indicates successful execution. The application will exit with a success code (`0`).
+  - `{:error, {code :: integer, reason :: String.t()}}`: Indicates an error occurred. The application will exit with the provided error code.
+
+  ## Running the CLI Application
+
+  You can run your CLI application using different methods:
+
+  ### Using `mix run`
+
+  If you're developing and testing your CLI, you can run it directly with `mix run`:
+
+      mix run -e 'MyCLI.execute("file copy source.txt dest.txt --verbose")'
+
+  ### Compiling with Escript
+
+  Escript allows you to compile your application into a single executable script.
+
+  **Steps:**
+
+  1. **Add Escript Configuration**: In your `mix.exs`, add the `:escript` configuration:
+
+  ```elixir
+  def project do
+    [
+      app: :my_cli,
+      version: "0.1.0",
+      elixir: "~> 1.12",
+      escript: [main_module: MyCLI],
+      deps: deps()
+    ]
+  end
+  ```
+
+  2. **Build the Escript**:
+
+  ```sh
+  mix escript.build
+  ```
+
+  3. **Run the Executable**:
+
+  ```sh
+  ./my_cli file copy --verbose source.txt dest.txt
+  ```
+
+  > Note that in order to use and distribute escript binaries, the host needs to have Erlang runtime available on $PATH
+
+  ### Compiling with Burrito
+
+  [Burrito](https://github.com/burrito-elixir/burrito) allows you to compile your application into a standalone binary.
+
+  **Steps:**
+
+  1. **Add Burrito Dependency**: Add Burrito to your `mix.exs`:
+
+  ```elixir
+  defp deps do
+    [
+      {:burrito, github: "burrito-elixir/burrito"}
+    ]
+  end
+  ```
+
+  2. **Configure Releases**: Update your `mix.exs` with Burrito release configuration:
+
+  ```elixir
+  def project do
+    [
+      app: :my_cli,
+      version: "0.1.0",
+      elixir: "~> 1.12",
+      releases: releases()
+    ]
+  end
+
+  def releases do
+    [
+      my_cli: [
+        steps: [:assemble, &Burrito.wrap/1],
+        burrito: [
+          targets: [
+            macos: [os: :darwin, cpu: :x86_64],
+            linux: [os: :linux, cpu: :x86_64],
+            windows: [os: :windows, cpu: :x86_64]
+          ]
+        ]
+      ]
+    ]
+  end
+  ```
+
+  3. **Build the Release**:
+
+  ```sh
+  MIX_ENV=prod mix release
+  ```
+
+  4. **Run the Binary**:
+
+  ```sh
+  ./burrito_out/my_cli_macos file copy --verbose source.txt dest.txt
+  ```
+
+  ### Using Mix Tasks
+
+  You can also run your CLI as a Mix task.
+
+  **Steps:**
+
+  1. **Create a Mix Task Module**:
+
+  ```elixir
+  defmodule Mix.Tasks.MyCli do
+    use Mix.Task
+
+    @shortdoc "Runs the MyCLI application"
+
+    def run(args) do
+      MyCLI.execute(args)
+    end
+  end
+  ```
+
+  2. **Run the Task**:
+
+  ```sh
+  mix my_cli file copy --verbose source.txt dest.txt
+  ```
+
+  ## Additional Information
+
+  - **Version and Description**: By default, `version/0` and `description/0` callbacks fetch information from `mix.exs` and `@moduledoc`, respectively. You can override them if needed.
+  - **Error Handling**: Use the `{:error, {code, reason}}` tuple to return errors from `handle_input/2`. The application will exit with the specified code, and the reason will be printed.
   """
 
   alias Nexus.CLI.Validation, as: V
@@ -210,7 +369,22 @@ defmodule Nexus.CLI do
     end
   end
 
-  # Macro to define a top-level command
+  @doc """
+  Defines a top-level command for the CLI application.
+
+  Use this macro to declare a new command along with its subcommands, arguments, and flags.
+
+  ## Parameters
+
+    - `name` - The name of the command (an atom).
+    - `do: block` - A block containing the command's definitions.
+
+  ## Examples
+
+      defcommand :my_command do
+        # Define subcommands, flags, and arguments here
+      end
+  """
   defmacro defcommand(name, do: block) do
     quote do
       # Initialize a new Command struct
@@ -227,7 +401,24 @@ defmodule Nexus.CLI do
     end
   end
 
-  # Macro to define a subcommand within the current command
+  @doc """
+  Defines a subcommand within the current command.
+
+  Use this macro inside a `defcommand` or another `subcommand` block to define a nested subcommand.
+
+  ## Parameters
+
+    - `name` - The name of the subcommand (an atom).
+    - `do: block` - A block containing the subcommand's definitions.
+
+  ## Examples
+
+      defcommand :parent_command do
+        subcommand :child_command do
+          # Define subcommands, flags, and arguments here
+        end
+      end
+  """
   defmacro subcommand(name, do: block) do
     quote do
       # Initialize a new Command struct for the subcommand
@@ -244,7 +435,33 @@ defmodule Nexus.CLI do
     end
   end
 
-  # Macro to define a positional argument
+  @doc """
+  Defines a positional argument for a command or a flag.
+
+  Use this macro to specify an argument's type and options within a command, subcommand, or flag block.
+
+  ## Parameters
+
+    - `type` - The type of the argument (e.g., `:string`, `:integer`). Check `Nexus.CLI.value()` type
+    - `opts` - A keyword list of options (optional).
+
+  ## Options
+
+    - `:required` - Indicates if the argument is required (boolean).
+    - `:as` - The name of the argument (atom), required if multiple values are defined
+    otherwise the name will be the same of the command that it defined
+    - `:default` - Defines the default value if the argument is not provided
+
+  ## Examples
+
+      defcommand :my_command do
+        value :string, required: true, as: :filename
+      end
+
+      flag :output do
+        value :string, required: true
+      end
+  """
   defmacro value(type, opts \\ []) do
     quote do
       flag_stack = Module.get_attribute(__MODULE__, :cli_flag_stack)
@@ -259,7 +476,27 @@ defmodule Nexus.CLI do
     end
   end
 
-  # Macro to define a flag
+  @doc """
+  Defines a flag (option) for a command or subcommand.
+
+  Use this macro within a command or subcommand block to declare a new flag and its properties.
+
+  Flags can have arguments too, therefore you can safely use the `value/2` macro inside of it.
+
+  ## Parameters
+
+    - `name` - The name of the flag (an atom).
+    - `do: block` - A block containing the flag's definitions.
+
+  ## Examples
+
+      defcommand :my_command do
+        flag :verbose do
+          short :v
+          description "Enables verbose mode."
+        end
+      end
+  """
   defmacro flag(name, do: block) do
     quote do
       # Initialize a new Flag struct
@@ -276,14 +513,47 @@ defmodule Nexus.CLI do
     end
   end
 
-  # Macro to define a short alias for a flag
+  @doc """
+  Defines a short alias for a flag.
+
+  Use this macro within a `flag` block to assign a short (single-letter) alias to a flag.
+
+  ## Parameters
+
+    - `short_name` - The short alias for the flag (an atom).
+
+  ## Examples
+
+      flag :verbose do
+        short :v
+        description "Enables verbose mode."
+      end
+  """
   defmacro short(short_name) do
     quote do
       Nexus.CLI.__set_flag_short__(unquote(short_name), __MODULE__)
     end
   end
 
-  # Macro to define a description for a command, subcommand, or flag
+  @doc """
+  Sets the description for a command, subcommand, or flag.
+
+  Use this macro within a `defcommand`, `subcommand`, or `flag` block to provide a description.
+
+  ## Parameters
+
+    - `desc` - The description text (a string).
+
+  ## Examples
+
+      defcommand :my_command do
+        description "Performs the main operation."
+
+        flag :verbose do
+          description "Enables verbose mode."
+        end
+      end
+  """
   defmacro description(desc) do
     quote do
       Nexus.CLI.__set_description__(unquote(desc), __MODULE__)
@@ -489,9 +759,9 @@ defmodule Nexus.CLI do
 
       If it fails it will display the CLI help. This
       convenience function can be used as delegated
-      of an Escript or Mix.Task module
+      of an `Escript` or `Mix.Task` module
 
-      For more information chekc `Nexus.CLI.__run_cli__`
+      For more information chekc `Nexus.CLI.__run_cli__/2`
       """
       # Nexus.Parser will tokenize the whole input
       # Mix tasks already split the argv into a list
