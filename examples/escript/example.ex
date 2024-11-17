@@ -13,9 +13,9 @@ defmodule Escript.Example do
   from the `main/1` escript funciton, as can seen below.
   """
 
-  use Nexus.CLI
+  use Nexus.CLI, otp_app: :nexus_cli
 
-  defcommand :foo do
+  defcommand :echo do
     description "Command that receives a string as argument and prints it."
 
     value :string, required: true
@@ -24,7 +24,7 @@ defmodule Escript.Example do
   defcommand :fizzbuzz do
     description "Fizz bUZZ"
 
-    value {:enum, ~w(fizz buzz)a}, required: true
+    value :integer, required: true
   end
 
   defcommand :foo_bar do
@@ -47,27 +47,28 @@ defmodule Escript.Example do
   def version, do: "0.1.0"
 
   @impl true
-  def handle_input(:foo, input) do
-    IO.puts(inspect(input))
+  def handle_input(:echo, %{value: value}) do
+    IO.puts(value)
   end
 
-  def handle_input(:fizzbuzz, %{value: :fizz}) do
-    IO.puts("buzz")
+  def handle_input(:fizzbuzz, %{value: value}) when is_integer(value) do
+    cond do
+      rem(value, 3) == 0 and rem(value, 5) == 0 -> IO.puts("fizzbuzz")
+      rem(value, 3) == 0 -> IO.puts("fizz")
+      rem(value, 5) == 0 -> IO.puts("buzz")
+      true -> IO.puts value
+    end
   end
 
-  def handle_input(:fizzbuzz, %{value: :buzz}) do
-    IO.puts("fizz")
-  end
-
-  def handle_input(:foo_bar, %{value: _, subcommand: :foo}) do
-    # do something wth "foo" value
+  def handle_input([:foo_bar, :foo], %{value: _}) do
+    IO.puts("Issued foo")
     :ok
   end
 
-  def handle_input(:foo_bar, %{value: _, subcommand: :bar}) do
-    # do something wth "bar" value
+  def handle_input([:foo_bar, :bar], %{value: _}) do
+    IO.puts("Issued bar")
     :ok
   end
 
-  # defdelegate main(args), to: __MODULE__, as: :run
+  defdelegate main(args), to: __MODULE__, as: :execute
 end
