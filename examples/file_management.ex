@@ -5,9 +5,6 @@ defmodule MyCLI do
 
   use Nexus.CLI
 
-  @doc """
-  Operates on files.
-  """
   defcommand :file do
     description "Performs file operations such as copy, move, and delete."
 
