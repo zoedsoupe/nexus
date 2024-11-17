@@ -4,13 +4,18 @@ defmodule Nexus.Parser do
   This implementation uses manual tokenization and parsing without parser combinators.
   """
 
-  alias Nexus.CLI.Command
+  @type result :: %{
+          program: atom,
+          command: list(atom),
+          flags: %{atom => term},
+          args: %{atom => term}
+        }
 
   @doc """
   Parses the raw input string based on the given AST.
   """
-  @spec parse_ast([Command.t()], String.t()) ::
-          {:ok, map()} | {:error, list(String.t())}
+  @spec parse_ast(ast :: Nexus.CLI.ast(), input :: String.t()) ::
+          {:ok, result} | {:error, list(String.t())}
   def parse_ast(ast, input) when is_list(ast) and is_binary(input) do
     with {:ok, tokens} <- tokenize(input),
          {:ok, program_name, tokens} <- extract_program_name(tokens),
@@ -217,6 +222,7 @@ defmodule Nexus.Parser do
   defp parse_value(value, :boolean) when is_boolean(value), do: value
   defp parse_value("true", :boolean), do: true
   defp parse_value("false", :boolean), do: false
+
   defp parse_value(value, :integer) when is_integer(value), do: value
 
   defp parse_value(value, :integer) do

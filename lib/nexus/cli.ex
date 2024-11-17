@@ -6,6 +6,18 @@ defmodule Nexus.CLI do
 
   defmodule Command do
     @moduledoc "Represents a command or subcommand."
+
+    alias Nexus.CLI.Argument
+    alias Nexus.CLI.Flag
+
+    @type t :: %__MODULE__{
+            name: atom | nil,
+            description: String.t() | nil,
+            subcommands: list(t),
+            flags: list(Flag.t()),
+            args: list(Argument.t())
+          }
+
     defstruct name: nil,
               description: nil,
               subcommands: [],
@@ -15,6 +27,16 @@ defmodule Nexus.CLI do
 
   defmodule Flag do
     @moduledoc "Represents a flag (option) for a command."
+
+    @type t :: %__MODULE__{
+            name: atom | nil,
+            short: atom | nil,
+            type: Nexus.CLI.value(),
+            required: boolean,
+            default: term,
+            description: String.t() | nil
+          }
+
     defstruct name: nil,
               short: nil,
               type: :boolean,
@@ -25,12 +47,30 @@ defmodule Nexus.CLI do
 
   defmodule Argument do
     @moduledoc "Represents a positional argument for a command."
+
+    @type t :: %__MODULE__{
+            name: atom | nil,
+            type: Nexus.CLI.value(),
+            required: boolean
+          }
+
     defstruct name: nil,
               type: :string,
               required: false
   end
 
-  alias Nexus.CLI.{Command, Flag, Argument}
+  alias Nexus.CLI.Argument
+  alias Nexus.CLI.Command
+  alias Nexus.CLI.Flag
+
+  @type ast :: list(Command.t())
+  @type value ::
+          :boolean
+          | :string
+          | :integer
+          | :float
+          | {:list, value}
+          | {:enum, list(atom | String.t())}
 
   defmacro __using__(_opts) do
     quote do
@@ -44,7 +84,6 @@ defmodule Nexus.CLI do
           description: 1
         ]
 
-      # Initialize module attributes to accumulate commands and manage stacks
       Module.register_attribute(__MODULE__, :cli_commands, accumulate: true)
       Module.register_attribute(__MODULE__, :cli_command_stack, accumulate: false)
       Module.register_attribute(__MODULE__, :cli_flag_stack, accumulate: false)
@@ -140,12 +179,10 @@ defmodule Nexus.CLI do
     ])
   end
 
-  # Finalize a top-level command and accumulate it
   def __finalize_command__(module) do
     [command | rest] = Module.get_attribute(module, :cli_command_stack)
 
-    # Ensure no duplicate command names
-    if Enum.any?(rest, fn cmd -> cmd.name == command.name end) do
+    if Enum.any?(rest, &(&1.name == command.name)) do
       raise "Duplicate command name: #{command.name}"
     end
 
@@ -153,12 +190,11 @@ defmodule Nexus.CLI do
     Module.put_attribute(module, :cli_command_stack, rest)
   end
 
-  # Finalize a subcommand and attach it to its parent
   def __finalize_subcommand__(module) do
     [subcommand, parent | rest] = Module.get_attribute(module, :cli_command_stack)
 
     # Ensure no duplicate subcommand names within the parent
-    if Enum.any?(parent.subcommands, fn sc -> sc.name == subcommand.name end) do
+    if Enum.any?(parent.subcommands, &(&1.name == subcommand.name)) do
       raise "Duplicate subcommand name: #{subcommand.name} within command #{parent.name}"
     end
 
@@ -173,7 +209,6 @@ defmodule Nexus.CLI do
     ])
   end
 
-  # Set the short alias for the current flag
   def __set_flag_short__(short_name, module) do
     [flag | rest] = Module.get_attribute(module, :cli_flag_stack)
     updated_flag = Map.put(flag, :short, short_name)
@@ -182,61 +217,44 @@ defmodule Nexus.CLI do
 
   # Set the description for the current command, subcommand, or flag
   def __set_description__(desc, module) do
-    # Check if a flag is currently being defined
     flag_stack = Module.get_attribute(module, :cli_flag_stack) || []
 
-    cond do
-      flag_stack != [] ->
-        [flag | rest] = flag_stack
-        updated_flag = Map.put(flag, :description, desc)
-        Module.put_attribute(module, :cli_flag_stack, [updated_flag | rest])
-
-      true ->
-        # Otherwise, set the description for the current command or subcommand
-        stack = Module.get_attribute(module, :cli_command_stack) || []
-        [current | rest] = stack
-        updated = Map.put(current, :description, desc)
-        Module.put_attribute(module, :cli_command_stack, [updated | rest])
+    if Enum.empty?(flag_stack) do
+      # if we're not operating on a flag, so it's a command/subcommand
+      stack = Module.get_attribute(module, :cli_command_stack) || []
+      [current | rest] = stack
+      updated = Map.put(current, :description, desc)
+      Module.put_attribute(module, :cli_command_stack, [updated | rest])
+    else
+      [flag | rest] = flag_stack
+      updated_flag = Map.put(flag, :description, desc)
+      Module.put_attribute(module, :cli_flag_stack, [updated_flag | rest])
     end
   end
 
-  # Finalize a flag and add it to its parent with validation
   def __finalize_flag__(module) do
     [flag | rest_flag] = Module.get_attribute(module, :cli_flag_stack)
     Module.put_attribute(module, :cli_flag_stack, rest_flag)
 
-    # Attach the flag to the current command or subcommand
     [current | rest] = Module.get_attribute(module, :cli_command_stack)
 
-    # Check for duplicate flag names within the current command or subcommand
-    if Enum.any?(current.flags, fn existing_flag -> existing_flag.name == flag.name end) do
+    if Enum.any?(current.flags, &(&1.name == flag.name)) do
       raise "Duplicate flag name: #{flag.name} within command #{current.name}"
     end
 
-    # Validate flag defaults based on type
-    flag =
-      case flag.type do
-        :boolean ->
-          Map.put_new(flag, :default, false)
-
-        _ ->
-          flag
-      end
+    flag = if flag.type == :bool, do: Map.put_new(flag, :default, false), else: flag
 
     updated = Map.update!(current, :flags, fn flags -> [flag | flags] end)
     Module.put_attribute(module, :cli_command_stack, [updated | rest])
   end
 
-  # Add an argument to the current command or subcommand
   def __add_argument__(arg, module) do
     [current | rest] = Module.get_attribute(module, :cli_command_stack)
 
-    # Append the argument to maintain order
     updated = Map.update!(current, :args, fn args -> args ++ [arg] end)
     Module.put_attribute(module, :cli_command_stack, [updated | rest])
   end
 
-  # Before compile hook to define the CLI commands
   defmacro __before_compile__(env) do
     commands = Module.get_attribute(env.module, :cli_commands)
 
@@ -246,10 +264,15 @@ defmodule Nexus.CLI do
         unquote(Macro.escape(commands))
       end
 
-      # Expose display_help function
-      def display_help(module, commands) do
-        Nexus.CLI.__display_help__(commands)
-      end
+      @doc """
+      Generates CLI documentation based into the CLI spec defined
+
+      For more information, check `Nexus.CLI.Help`
+
+      It receives the AST or an optional command path, for displaying
+      subcommands help, for example
+      """
+      defdelegate display_help(ast, path \\ []), to: Nexus.CLI.Help, as: :display
     end
   end
 end

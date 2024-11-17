@@ -8,7 +8,7 @@ defmodule Nexus.CLI.Help do
 
   If no command path is provided, it displays the root help.
   """
-  def __display_help__(ast, command_path \\ []) do
+  def display(ast, command_path \\ []) do
     cmd = get_command(ast, command_path)
 
     if cmd do
