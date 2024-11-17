@@ -17,38 +17,26 @@ An `Elixir` library to write command line apps in a cleaner and elegant way!
 [![Hex.pm](https://img.shields.io/hexpm/v/nexus_cli.svg)](https://hex.pm/packages/nexus_cli)
 [![Downloads](https://img.shields.io/hexpm/dt/nexus_cli.svg)](https://hex.pm/packages/nexus_cli)
 [![Documentation](https://img.shields.io/badge/documentation-gray)](https://hexdocs.pm/nexus_cli)
-[![lint](https://github.com/zoedsoupe/nexus/actions/workflows/lint.yml/badge.svg)](https://github.com/zoedsoupe/nexus/actions/workflows/lint.yml)
-[![test](https://github.com/zoedsoupe/nexus/actions/workflows/test.yml/badge.svg)](https://github.com/zoedsoupe/nexus/actions/workflows/test.yml)
+[![ci](https://github.com/zoedsoupe/nexus/actions/workflows/ci.yml/badge.svg)](https://github.com/zoedsoupe/nexus/actions/workflows/ci.yml)
 
 ## Example
 
-```elixir dark
+```elixir
 defmodule MyCLI do
-  use Nexus
+  @moduledoc "This will be used into as help"
 
-  defcommand :ping, type: :null, doc: "Answers 'pong'"
-  defcommand :fizzbuzz, type: :integer, required: true, doc: "Plays fizzbuzz"
-  defcommand :mode, type: {:enum, ~w[fast slow]a}, required: true, doc: "Defines the command mode"
+  use Nexus.CLI
 
-  @impl Nexus.CLI
-  # no input as type == :null
-  def handle_input(:ping), do: IO.puts("pong")
+  defcommand :fizzbuzz do
+    description "Plays fizzbuzz - this will also be used as help"
 
-  @impl Nexus.CLI
-  # input can be named to anything
-  @spec handle_input(atom, input) :: :ok
-        when input: Nexus.Command.Input.t()
-  def handle_input(:fizzbuzz, %{value: value}) do
-    cond do
-      rem(value, 3) == 0 -> IO.puts("fizz")
-      rem(value, 5) == 0 -> IO.puts("buzz")
-      rem(value, 3) == 0 and rem(value, 5) == 0 -> IO.puts("fizzbuzz")
-      true -> IO.puts value
-    end
+    value :integer, required: true
   end
 
-  def handle_input(:mode, %{value: :fast), do: IO.puts "Hare"
-  def handle_input(:mode, %{value: :slow), do: IO.puts "Tortoise"
+  @impl Nexus.CLI
+  def handle_input(:fizzbuzz, %{args: [input]}) do
+    # plays fizzbuzz
+  end
 end
 ```
 

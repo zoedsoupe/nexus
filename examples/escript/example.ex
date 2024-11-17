@@ -13,14 +13,34 @@ defmodule Escript.Example do
   from the `main/1` escript funciton, as can seen below.
   """
 
-  use Nexus
+  use Nexus.CLI
 
-  defcommand :foo, required: true, type: :string, doc: "Command that receives a string as argument and prints it."
-  defcommand :fizzbuzz, type: {:enum, ~w(fizz buzz)a}, doc: "Fizz bUZZ", required: true
+  defcommand :foo do
+    description "Command that receives a string as argument and prints it."
 
-  defcommand :foo_bar, type: :null, doc: "Teste" do
-    defcommand :foo, default: "hello", doc: "Hello"
-    defcommand :bar, default: "hello", doc: "Hello"
+    value :string, required: true
+  end
+
+  defcommand :fizzbuzz do
+    description "Fizz bUZZ"
+
+    value {:enum, ~w(fizz buzz)a}, required: true
+  end
+
+  defcommand :foo_bar do
+    description "Teste"
+
+    subcommand :foo do
+      description "hello"
+
+      value :string, required: false, default: "hello"
+    end
+
+    subcommand :bar do
+      description "hello"
+
+      value :string, required: false, default: "hello"
+    end
   end
 
   @impl true
@@ -49,8 +69,5 @@ defmodule Escript.Example do
     :ok
   end
 
-  Nexus.help()
-  Nexus.parse()
-
-  defdelegate main(args), to: __MODULE__, as: :run
+  # defdelegate main(args), to: __MODULE__, as: :run
 end

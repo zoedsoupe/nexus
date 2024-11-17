@@ -1,133 +1,330 @@
 defmodule Nexus.Parser do
-  @moduledoc "Should parse the command and return the value"
+  @moduledoc """
+  Nexus.Parser provides functionalities to parse raw input strings based on the CLI AST.
+  This implementation uses manual tokenization and parsing without parser combinators.
+  """
 
-  import Nexus.Parser.DSL
+  @type result :: %{
+          program: atom,
+          command: list(atom),
+          flags: %{atom => term},
+          args: %{atom => term}
+        }
 
-  alias Nexus.Command
-  alias Nexus.Command.Input
-  alias Nexus.FailedCommandParsing, as: Error
+  @doc """
+  Parses the raw input string based on the given AST.
+  """
+  @spec parse_ast(ast :: Nexus.CLI.ast(), input :: String.t()) ::
+          {:ok, result} | {:error, list(String.t())}
+  def parse_ast(ast, input) when is_list(ast) and is_binary(input) do
+    with {:ok, tokens} <- tokenize(input),
+         {:ok, program_name, tokens} <- extract_program_name(tokens),
+         {:ok, program_ast} <- find_program(program_name, ast),
+         {:ok, command_path, command_ast, tokens} <- extract_commands(tokens, program_ast),
+         {:ok, flags, args} <- parse_flags_and_args(tokens),
+         {:ok, processed_flags} <- process_flags(flags, command_ast.flags),
+         {:ok, processed_args} <- process_args(args, command_ast.args) do
+      {:ok,
+       %{
+         program: program_name,
+         command: Enum.map(command_path, &String.to_existing_atom/1),
+         flags: processed_flags,
+         args: processed_args
+       }}
+    end
+  end
 
-  @spec run!(binary, Command.t()) :: Input.t()
-  def run!(raw, %Command{} = cmd) do
-    raw
-    |> String.trim_trailing()
-    |> String.trim_leading()
-    |> parse_command(cmd)
+  ## Tokenization Functions
+
+  defp tokenize(input) do
+    input
+    |> String.trim()
+    |> String.split(~r/\s+/, trim: true)
+    |> handle_quoted_strings()
+  end
+
+  defp handle_quoted_strings(tokens) do
+    tokens
+    |> Enum.reduce({:ok, [], false, []}, &handle_quoted_string/2)
     |> case do
-      {:ok, input} ->
-        input
+      {:ok, acc, false, []} ->
+        {:ok, Enum.reverse(acc)}
 
-      {:error, _} ->
-        raise Error, "Failed to parse command #{inspect(cmd)}"
+      {:ok, _acc, true, _buffer} ->
+        {:error, "Unclosed quoted string"}
 
-      :error ->
-        raise Error,
-              "Failed to parse command #{inspect(cmd)} with subcommands #{inspect(cmd.subcommands)}"
+      {:error, msg} ->
+        {:error, [msg]}
     end
   end
 
-  defp parse_subcommand(input, cmd) do
-    case parse_command(input, cmd) do
-      {:ok, input} -> {:halt, {:ok, Map.put(input, :subcommand, cmd.name)}}
-      {:error, _} -> {:cont, :error}
+  defp handle_quoted_string(token, {:ok, acc, in_quote, buffer}) do
+    cond do
+      raw_quoted?(token) -> handle_raw_quoted(token, buffer, in_quote, acc)
+      String.starts_with?(token, "\"") -> handle_started_quoted(token, acc)
+      String.ends_with?(token, "\"") and in_quote -> handle_ended_quoted(token, buffer, acc)
+      in_quote -> {:ok, acc, true, [token | buffer]}
+      true -> {:ok, [token | acc], in_quote, buffer}
     end
   end
 
-  defp parse_command(input, %Command{type: :null, subcommands: [_ | _] = subs} = cmd) do
-    with {:ok, {_, rest}} <- literal(input, cmd.name) do
-      Enum.reduce_while(subs, :error, fn sub, _acc -> parse_subcommand(rest, sub) end)
+  defp raw_quoted?(token) do
+    String.starts_with?(token, "\"") and String.ends_with?(token, "\"") and
+      String.length(token) > 1
+  end
+
+  defp handle_raw_quoted(token, buffer, in_quote, acc) do
+    unquoted = String.slice(token, 1..-2//-1)
+    {:ok, [unquoted | acc], in_quote, buffer}
+  end
+
+  defp handle_started_quoted(token, acc) do
+    unquoted = String.trim_leading(token, "\"")
+    {:ok, acc, true, [unquoted]}
+  end
+
+  defp handle_ended_quoted(token, buffer, acc) do
+    unquoted = String.trim_trailing(token, "\"")
+    buffer = Enum.reverse([unquoted | buffer])
+    combined = Enum.join(buffer, " ")
+    {:ok, [combined | acc], false, []}
+  end
+
+  ## Extraction Functions
+
+  defp extract_program_name([program_name | rest]) do
+    {:ok, String.to_existing_atom(program_name), rest}
+  end
+
+  defp extract_program_name([]), do: {:error, "No program specified"}
+
+  defp extract_commands(tokens, program_ast) do
+    extract_commands(tokens, [], program_ast)
+  end
+
+  defp extract_commands([token | rest_tokens], command_path, current_ast) do
+    subcommand_ast =
+      Enum.find(current_ast.subcommands || [], fn cmd ->
+        to_string(cmd.name) == token
+      end)
+
+    if subcommand_ast do
+      # Found a subcommand, add it to the path and continue
+      extract_commands(rest_tokens, command_path ++ [token], subcommand_ast)
+    else
+      # No matching subcommand, return current command path and ast
+      if command_path == [] do
+        {:error, "Unknown subcommand: #{token}"}
+      else
+        {:ok, command_path, current_ast, [token | rest_tokens]}
+      end
     end
   end
 
-  defp parse_command(input, %Command{type: :null} = cmd) do
-    with {:ok, {_, rest}} <- literal(input, cmd.name) do
-      {:ok, Input.parse!(nil, rest)}
+  defp extract_commands([], command_path, current_ast) do
+    # No more tokens
+    {:ok, command_path, current_ast, []}
+  end
+
+  ## Lookup Functions
+
+  defp find_program(name, ast) do
+    case Enum.find(ast, &(&1.name == name)) do
+      nil -> {:error, "Program '#{name}' not found"}
+      program -> {:ok, program}
     end
   end
 
-  defp parse_command(input, %Command{type: :string} = cmd) do
-    with {:ok, {_, rest}} <- literal(input, cmd.name),
-         {:ok, value} <- maybe_parse_required(cmd, fn -> string(rest) end) do
-      {:ok, Input.parse!(value, input)}
+  ## Parsing Flags and Arguments
+
+  defp parse_flags_and_args(tokens) do
+    parse_flags_and_args(tokens, [], [])
+  end
+
+  defp parse_flags_and_args([], flags, args) do
+    {:ok, Enum.reverse(flags), Enum.reverse(args)}
+  end
+
+  defp parse_flags_and_args([token | rest], flags, args) do
+    cond do
+      String.starts_with?(token, "--") ->
+        # Long flag
+        parse_long_flag(token, rest, flags, args)
+
+      String.starts_with?(token, "-") and token != "-" ->
+        # Short flag
+        parse_short_flag(token, rest, flags, args)
+
+      true ->
+        # Argument
+        parse_flags_and_args(rest, flags, [token | args])
     end
   end
 
-  defp parse_command(input, %Command{type: :integer} = cmd) do
-    with {:ok, {_, rest}} <- literal(input, cmd.name),
-         {:ok, value} <- maybe_parse_required(cmd, fn -> integer(rest) end) do
-      {:ok,
-       value
-       |> string_to!(:integer)
-       |> Input.parse!(input)}
+  defp parse_long_flag(token, rest, flags, args) do
+    case String.split(token, "=", parts: 2) do
+      [flag] ->
+        flag_name = String.trim_leading(flag, "--")
+        parse_flags_and_args(rest, [{:long_flag, flag_name, true} | flags], args)
+
+      [flag, value] ->
+        flag_name = String.trim_leading(flag, "--")
+        parse_flags_and_args(rest, [{:long_flag, flag_name, value} | flags], args)
     end
   end
 
-  defp parse_command(input, %Command{type: :float} = cmd) do
-    with {:ok, {_, rest}} <- literal(input, cmd.name),
-         {:ok, value} <- maybe_parse_required(cmd, fn -> float(rest) end) do
-      {:ok,
-       value
-       |> string_to!(:float)
-       |> Input.parse!(input)}
+  defp parse_short_flag(token, rest, flags, args) do
+    case String.split(token, "=", parts: 2) do
+      [flag] ->
+        flag_name = String.trim_leading(flag, "-")
+        parse_flags_and_args(rest, [{:short_flag, flag_name, true} | flags], args)
+
+      [flag, value] ->
+        flag_name = String.trim_leading(flag, "-")
+        parse_flags_and_args(rest, [{:short_flag, flag_name, value} | flags], args)
     end
   end
 
-  defp parse_command(input, %Command{type: :atom} = cmd) do
-    with {:ok, {_, rest}} <- literal(input, cmd.name),
-         {:ok, value} <- maybe_parse_required(cmd, fn -> string(rest) end) do
-      {:ok,
-       value
-       |> string_to!(:atom)
-       |> Input.parse!(input)}
-    end
-  end
+  ## Processing Flags
 
-  defp parse_command(input, %Command{type: {:enum, values}} = cmd) do
-    with {:ok, {_, rest}} <- literal(input, cmd.name),
-         {:ok, value} <- maybe_parse_required(cmd, fn -> enum(rest, values) end) do
-      value =
-        cond do
-          is_binary(hd(values)) -> value
-          is_atom(value) -> value
-          true -> string_to!(value, :atom)
+  defp process_flags(flag_tokens, defined_flags) do
+    flags =
+      Enum.reduce(flag_tokens, %{}, fn {_flag_type, name, value}, acc ->
+        name_atom = String.to_atom(name)
+
+        flag_def =
+          Enum.find(defined_flags, fn flag ->
+            flag.name == name_atom || (flag.short && flag.short == name_atom)
+          end)
+
+        if flag_def do
+          parsed_value = parse_value(value, flag_def.type)
+
+          Map.put(acc, Atom.to_string(flag_def.name), parsed_value)
+        else
+          acc
         end
+      end)
 
-      {:ok, Input.parse!(value, input)}
+    missing_required_flags = list_missing_required_flags(flags, defined_flags)
+
+    if Enum.empty?(missing_required_flags) do
+      non_parsed_flags = list_non_parsed_flags(flags, defined_flags)
+
+      {:ok,
+       flags
+       |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
+       |> Map.merge(non_parsed_flags)}
+    else
+      {:error, "Missing required flags: #{Enum.join(missing_required_flags, ", ")}"}
     end
   end
 
-  @spec string_to!(binary, atom) :: term
-  defp string_to!(raw, :integer) do
-    case Integer.parse(raw) do
+  defp list_missing_required_flags(parsed, defined) do
+    defined
+    |> Enum.filter(fn flag ->
+      flag.required and not Map.has_key?(parsed, Atom.to_string(flag.name))
+    end)
+    |> Enum.map(&Atom.to_string/1)
+  end
+
+  defp list_non_parsed_flags(parsed, defined) do
+    defined
+    |> Enum.filter(&(not Map.has_key?(parsed, Atom.to_string(&1.name))))
+    |> Enum.map(&{&1.name, &1.default})
+    |> Map.new()
+  end
+
+  defp parse_value(value, :boolean) when is_boolean(value), do: value
+  defp parse_value("true", :boolean), do: true
+  defp parse_value("false", :boolean), do: false
+
+  defp parse_value(value, :integer) when is_integer(value), do: value
+
+  defp parse_value(value, :integer) do
+    case Integer.parse(value) do
       {int, ""} -> int
-      _ -> raise Error, "#{raw} is not a valid integer"
+      _ -> raise ArgumentError, "Invalid integer value: #{value}"
     end
   end
 
-  defp string_to!(raw, :float) do
-    case Float.parse(raw) do
+  defp parse_value(value, :float) when is_float(value), do: value
+
+  defp parse_value(value, :float) do
+    case Float.parse(value) do
       {float, ""} -> float
-      _ -> raise Error, "#{raw} is not a valid float"
+      _ -> raise ArgumentError, "Invalid float value: #{value}"
     end
   end
 
-  # final user shoul not be use very often
-  defp string_to!(raw, :atom) do
-    String.to_atom(raw)
-  end
+  defp parse_value(value, _), do: value
 
-  @spec maybe_parse_required(Command.t(), (() -> {:ok, {binary, binary} | {:error, term}})) ::
-          {:ok, term} | {:error, term}
-  defp maybe_parse_required(%Command{required: true}, fun) do
-    with {:ok, {value, _}} <- fun.() do
-      {:ok, value}
+  ## Processing Arguments
+
+  defp process_args(arg_tokens, defined_args) do
+    case process_args_recursive(arg_tokens, defined_args, %{}) do
+      {:ok, acc} -> {:ok, acc}
+      {:error, reason} -> {:error, [reason]}
     end
   end
 
-  defp maybe_parse_required(%Command{required: false} = cmd, fun) do
-    case fun.() do
-      {:ok, {value, _}} -> {:ok, value}
-      {:error, _} -> {:ok, cmd.default}
+  defp process_args_recursive(_tokens, [], acc) do
+    {:ok, acc}
+  end
+
+  defp process_args_recursive(tokens, [arg_def | rest_args], acc) do
+    case process_single_arg(tokens, arg_def) do
+      {:ok, value, rest_tokens} ->
+        acc = Map.put(acc, arg_def.name, value)
+        process_args_recursive(rest_tokens, rest_args, acc)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp process_single_arg(tokens, arg_def) do
+    case arg_def.type do
+      {:list, _type} -> process_list_arg(tokens, arg_def)
+      {:enum, values_list} -> process_enum_arg(tokens, arg_def, values_list)
+      _ -> process_default_arg(tokens, arg_def)
+    end
+  end
+
+  defp process_list_arg(tokens, arg_def) do
+    if tokens == [] and arg_def.required do
+      {:error, "Missing required argument '#{arg_def.name}' of type list"}
+    else
+      {:ok, tokens, []}
+    end
+  end
+
+  defp process_enum_arg([value | rest_tokens], arg_def, values_list) do
+    if value in Enum.map(values_list, &to_string/1) do
+      {:ok, value, rest_tokens}
+    else
+      {:error,
+       "Invalid value for argument '#{arg_def.name}': expected one of [#{Enum.join(values_list, ", ")}], got '#{value}'"}
+    end
+  end
+
+  defp process_enum_arg([], arg_def, _values_list) do
+    if arg_def.required do
+      {:error, "Missing required argument '#{arg_def.name}'"}
+    else
+      {:ok, nil, []}
+    end
+  end
+
+  defp process_default_arg([value | rest_tokens], _arg_def) do
+    {:ok, value, rest_tokens}
+  end
+
+  defp process_default_arg([], arg_def) do
+    if arg_def.required do
+      {:error, "Missing required argument '#{arg_def.name}'"}
+    else
+      {:ok, nil, []}
     end
   end
 end
