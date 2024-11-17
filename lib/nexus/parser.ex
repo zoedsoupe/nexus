@@ -16,11 +16,16 @@ defmodule Nexus.Parser do
   @doc """
   Parses the raw input string based on the given AST.
   """
-  @spec parse_ast(cli :: Nexus.CLI.t(), input :: String.t()) ::
+  @spec parse_ast(cli :: Nexus.CLI.t(), input :: String.t() | list(String.t())) ::
           {:ok, result} | {:error, list(String.t())}
   def parse_ast(%Nexus.CLI{} = cli, input) when is_binary(input) do
-    with {:ok, tokens} <- tokenize(input),
-         {:ok, root_cmd, tokens} <- extract_root_cmd_name(tokens),
+    with {:ok, tokens} <- tokenize(input) do
+      parse_ast(cli, tokens)
+    end
+  end
+
+  def parse_ast(%Nexus.CLI{} = cli, tokens) when is_list(tokens) do
+    with {:ok, root_cmd, tokens} <- extract_root_cmd_name(tokens),
          {:ok, root_ast} <- find_root(root_cmd, cli.spec),
          {:ok, command_path, command_ast, tokens} <- extract_commands(tokens, root_ast),
          {:ok, flags, args} <- parse_flags_and_args(tokens),

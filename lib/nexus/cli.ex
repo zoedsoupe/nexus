@@ -493,10 +493,9 @@ defmodule Nexus.CLI do
 
       For more information chekc `Nexus.CLI.__run_cli__`
       """
-      def execute(argv) when is_list(argv) or is_binary(argv) do
-        # Nexus.Parser will tokenize the whole input
-        # Mix tasks already split the argv into a list
-        argv = List.wrap(argv) |> Enum.join(" ")
+      # Nexus.Parser will tokenize the whole input
+      # Mix tasks already split the argv into a list
+      def execute(argv) when is_binary(argv) or is_list(argv) do
         Nexus.CLI.__run_cli__(__nexus_spec__(), argv)
       end
 
@@ -544,7 +543,7 @@ defmodule Nexus.CLI do
   If `handle_input/2` returns an error, it stops the VM with the desired code.
   """
   @spec __run_cli__(t, binary) :: :ok
-  def __run_cli__(%__MODULE__{} = cli, input) when is_binary(input) do
+  def __run_cli__(%__MODULE__{} = cli, input) when is_binary(input) or is_list(input) do
     with {:ok, result} <- Parser.parse_ast(cli, input),
          :ok <- Dispatcher.dispatch(cli, result) do
       System.stop(0)
