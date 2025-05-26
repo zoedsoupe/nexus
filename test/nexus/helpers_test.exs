@@ -1,5 +1,6 @@
 defmodule Nexus.CLI.HelpersTest do
   use ExUnit.Case
+
   import ExUnit.CaptureIO
 
   alias Nexus.CLI.Helpers

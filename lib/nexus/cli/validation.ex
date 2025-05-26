@@ -10,6 +10,7 @@ defmodule Nexus.CLI.Validation do
   @supported_types [:boolean, :string, :integer, :float]
 
   defmodule ValidationError do
+    @moduledoc false
     defexception message: "Validation error"
 
     @spec exception(String.t()) :: %__MODULE__{message: String.t()}
@@ -124,7 +125,7 @@ defmodule Nexus.CLI.Validation do
 
   defp validate_flag_default(%Flag{default: default, type: type, name: name} = flag) do
     if default != nil do
-      unless valid_default?(default, type) do
+      if !valid_default?(default, type) do
         raise ValidationError,
               "Default value for flag '#{name}' must be of type #{inspect(type)}, got: #{inspect(default)}."
       end
@@ -163,7 +164,7 @@ defmodule Nexus.CLI.Validation do
 
   defp validate_argument_default(%Argument{default: default, type: type, name: name} = arg) do
     if default != nil do
-      unless valid_default?(default, type) do
+      if !valid_default?(default, type) do
         raise ValidationError,
               "Default value for argument '#{name}' must be of type #{inspect(type)}, got: #{inspect(default)}."
       end

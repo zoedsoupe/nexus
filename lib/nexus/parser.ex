@@ -259,8 +259,7 @@ defmodule Nexus.Parser do
   defp list_non_parsed_flags(parsed, defined) do
     defined
     |> Enum.filter(&(not Map.has_key?(parsed, &1.name)))
-    |> Enum.map(&{&1.name, &1.default})
-    |> Map.new()
+    |> Map.new(&{&1.name, &1.default})
   end
 
   defp parse_value(value, :boolean) when is_boolean(value), do: value

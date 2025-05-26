@@ -1,5 +1,6 @@
 defmodule Nexus.ParserTest do
   use ExUnit.Case
+
   alias Nexus.Parser
 
   @cli MyCLI.__nexus_spec__()
@@ -151,7 +152,7 @@ defmodule Nexus.ParserTest do
   end
 
   test "parses copy command with quoted string argument" do
-    input = "file copy --verbose \"file 1.txt\" \"file 2.txt\""
+    input = ~s(file copy --verbose "file 1.txt" "file 2.txt")
 
     expected = %{
       program: @program,
