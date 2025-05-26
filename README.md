@@ -8,7 +8,7 @@
 
 > Create CLIs in a magic and declarative way!
 
-An `Elixir` library to write command line apps in a cleaner and elegant way!
+A pure `Elixir` library to write command line apps in a cleaner and elegant way!
 
 [![Hex.pm](https://img.shields.io/hexpm/v/nexus_cli.svg)](https://hex.pm/packages/nexus_cli)
 [![Downloads](https://img.shields.io/hexpm/dt/nexus_cli.svg)](https://hex.pm/packages/nexus_cli)

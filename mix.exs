@@ -16,7 +16,12 @@ defmodule Nexus.MixProject do
       package: package(),
       source_url: @source_url,
       description: description(),
-      elixirc_paths: elixirc_paths(Mix.env())
+      elixirc_paths: elixirc_paths(Mix.env()),
+      dialyzer: [
+        plt_local_path: "priv/plts",
+        ignore_warnings: ".dialyzerignore.exs",
+        plt_add_apps: [:mix, :ex_unit]
+      ]
     ]
   end
 
@@ -32,7 +37,8 @@ defmodule Nexus.MixProject do
     [
       {:ex_doc, "~> 0.27", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
-      {:styler, "~> 1.4", only: [:dev, :test], runtime: false}
+      {:styler, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.3", only: [:dev, :test], runtime: false}
     ]
   end
 
