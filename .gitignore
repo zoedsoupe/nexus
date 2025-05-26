@@ -25,6 +25,9 @@ nexus-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
+# Dialyzer
+/priv/plts/
+
 # Nix files
 result
 /.nix-mix/

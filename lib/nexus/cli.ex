@@ -163,16 +163,14 @@ defmodule Nexus.CLI do
   - **Error Handling**: Use the `{:error, {code, reason}}` tuple to return errors from `handle_input/2`. The application will exit with the specified code, and the reason will be printed.
   """
 
-  alias Nexus.CLI.Validation, as: V
-
   alias Nexus.CLI.Argument
   alias Nexus.CLI.Command
   alias Nexus.CLI.Dispatcher
   alias Nexus.CLI.Flag
   alias Nexus.CLI.Help
   alias Nexus.CLI.Input
+  alias Nexus.CLI.Validation, as: V
   alias Nexus.CLI.Validation.ValidationError
-
   alias Nexus.Parser
 
   @typedoc "Represents the CLI spec, basically a list of `Command.t()` spec"
@@ -336,6 +334,8 @@ defmodule Nexus.CLI do
     cli = %__MODULE__{name: name, otp_app: otp_app}
 
     quote do
+      @behaviour Nexus.CLI
+
       import Nexus.CLI,
         only: [
           defcommand: 2,
@@ -352,8 +352,6 @@ defmodule Nexus.CLI do
       Module.register_attribute(__MODULE__, :cli_flag_stack, accumulate: false)
 
       @before_compile Nexus.CLI
-
-      @behaviour Nexus.CLI
 
       @impl Nexus.CLI
       def version do
@@ -793,6 +791,7 @@ defmodule Nexus.CLI do
       """
       def display_help(path \\ []) do
         alias Nexus.CLI
+
         Help.display(__nexus_spec__(), path)
       end
     end
@@ -812,7 +811,7 @@ defmodule Nexus.CLI do
 
   If `handle_input/2` returns an error, it stops the VM with the desired code.
   """
-  @spec __run_cli__(t, binary) :: :ok
+  @spec __run_cli__(t, binary | [binary]) :: :ok
   def __run_cli__(%__MODULE__{} = cli, input) when is_binary(input) or is_list(input) do
     with {:ok, result} <- Parser.parse_ast(cli, input),
          :ok <- Dispatcher.dispatch(cli, result) do

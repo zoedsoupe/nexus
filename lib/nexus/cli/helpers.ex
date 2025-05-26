@@ -23,7 +23,7 @@ defmodule Nexus.CLI.Helpers do
   @spec ask(question :: String.t()) :: String.t()
   @spec ask(question :: String.t(), prompt_symbol :: String.t()) :: String.t()
   def ask(question, prompt_symbol \\ " ") do
-    IO.gets(question <> prompt_symbol) |> String.trim()
+    (question <> prompt_symbol) |> IO.gets() |> String.trim()
   end
 
   @doc """
@@ -41,7 +41,7 @@ defmodule Nexus.CLI.Helpers do
           negations :: list(String.t())
         ) :: boolean
   def yes?(question, confirmations \\ ["y", "yes"], negations \\ ["n", "no"]) do
-    response = ask(question <> " (y/n)") |> String.downcase()
+    response = (question <> " (y/n)") |> ask() |> String.downcase()
 
     cond do
       response in confirmations -> true

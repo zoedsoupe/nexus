@@ -1,41 +1,33 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-parts.url = "github:hercules-ci/flake-parts";
-    systems.url = "github:nix-systems/default";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05-small";
+    elixir-overlay.url = "github:zoedsoupe/elixir-overlay";
   };
 
   outputs = {
-    flake-parts,
-    systems,
+    nixpkgs,
+    elixir-overlay,
     ...
-  } @ inputs:
-    flake-parts.lib.mkFlake {inherit inputs;} {
-      systems = import systems;
-      perSystem = {
-        pkgs,
-        system,
-        ...
-      }: let
-        inherit (pkgs.beam.interpreters) erlang_27;
-        inherit (pkgs.beam) packagesWith;
-        beam = packagesWith erlang_27;
-      in {
-        _module.args.pkgs = import inputs.nixpkgs {
-          inherit system;
-          config.allowUnfree = true;
-        };
-        devShells.default = with pkgs;
-          mkShell {
-            name = "nexus";
-            packages = with pkgs;
-              [beam.elixir_1_17 erlang_27]
-              ++ lib.optional stdenv.isLinux [inotify-tools]
-              ++ lib.optional stdenv.isDarwin [
-                darwin.apple_sdk.frameworks.CoreServices
-                darwin.apple_sdk.frameworks.CoreFoundation
-              ];
-          };
+  }: let
+    inherit (nixpkgs.lib) genAttrs;
+    inherit (nixpkgs.lib.systems) flakeExposed;
+    forAllSystems = f:
+      genAttrs flakeExposed (
+        system: let
+          overlays = [elixir-overlay.overlays.default];
+          pkgs = import nixpkgs {inherit system overlays;};
+        in
+          f pkgs
+      );
+  in {
+    devShells = forAllSystems (pkgs: let
+      inherit (pkgs) mkShell;
+      inherit (pkgs.beam.interpreters) erlang_27;
+    in {
+      default = mkShell {
+        name = "nexus";
+        packages = with pkgs; [elixir_1_18 erlang_27];
       };
-    };
+    });
+  };
 }
