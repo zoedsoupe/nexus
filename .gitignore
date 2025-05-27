@@ -33,5 +33,4 @@ result
 /.nix-mix/
 
 # Escript builds
-nexus
 nexus_cli
