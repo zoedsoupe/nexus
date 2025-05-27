@@ -193,7 +193,6 @@ defmodule Nexus.ParserTest do
     assert parsed == expected
   end
 
-
   test "parses command with -h flag and other flags and arguments" do
     input = "file copy -v -h source.txt dest.txt"
 
