@@ -95,20 +95,6 @@ defmodule MyCLI do
   end
 
   @impl Nexus.CLI
-  def handle_input(nil, %{flags: flags}) do
-    if flags.global_verbose do
-      IO.puts("Global verbose mode enabled")
-    end
-
-    if config_file = flags.config_file do
-      IO.puts("Using config file: #{config_file}")
-    end
-
-    IO.puts("Root command executed")
-    :ok
-  end
-
-  @impl Nexus.CLI
   def handle_input(:version, _) do
     # `version/0` comes from Nexus.CLI or the callback this module defined
     vsn = version()
