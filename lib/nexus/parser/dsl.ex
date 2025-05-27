@@ -308,20 +308,24 @@ defmodule Nexus.Parser.DSL do
   def short_flag_parser do
     fn
       ["-" <> flag_text | rest] when flag_text != "" ->
-        if String.starts_with?(flag_text, "-") do
-          {:error, "Expected short flag (-f), got '--#{String.trim_leading(flag_text, "-")}'"}
-        else
-          case String.split(flag_text, "=", parts: 2) do
-            [flag_name] -> {:ok, {:flag, :short, flag_name, true}, rest}
-            [flag_name, value] -> {:ok, {:flag, :short, flag_name, value}, rest}
-          end
-        end
+        parse_short_flag_text(flag_text, rest)
 
       [other | _] ->
         {:error, "Expected short flag (-f), got '#{other}'"}
 
       [] ->
         {:error, "Expected short flag (-f), got end of input"}
+    end
+  end
+
+  defp parse_short_flag_text(flag_text, rest) do
+    if String.starts_with?(flag_text, "-") do
+      {:error, "Expected short flag (-f), got '--#{String.trim_leading(flag_text, "-")}'"}
+    else
+      case String.split(flag_text, "=", parts: 2) do
+        [flag_name] -> {:ok, {:flag, :short, flag_name, true}, rest}
+        [flag_name, value] -> {:ok, {:flag, :short, flag_name, value}, rest}
+      end
     end
   end
 
@@ -561,18 +565,22 @@ defmodule Nexus.Parser.DSL do
     fn input ->
       case parse(element_parser, input) do
         {:ok, first, remaining} ->
-          case parse(many(sequence([separator_parser, element_parser])), remaining) do
-            {:ok, rest_pairs, final_remaining} ->
-              rest_elements = Enum.map(rest_pairs, fn [_, element] -> element end)
-              {:ok, [first | rest_elements], final_remaining}
-
-            {:error, reason} ->
-              {:error, reason}
-          end
+          parse_remaining_elements(element_parser, separator_parser, first, remaining)
 
         error ->
           error
       end
+    end
+  end
+
+  defp parse_remaining_elements(element_parser, separator_parser, first, remaining) do
+    case parse(many(sequence([separator_parser, element_parser])), remaining) do
+      {:ok, rest_pairs, final_remaining} ->
+        rest_elements = Enum.map(rest_pairs, fn [_, element] -> element end)
+        {:ok, [first | rest_elements], final_remaining}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 end

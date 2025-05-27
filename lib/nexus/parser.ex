@@ -157,35 +157,52 @@ defmodule Nexus.Parser do
 
   defp parse_flags_and_args([token | rest] = tokens, flags, args) do
     cond do
-      "--help" in tokens or "-h" in tokens ->
-        flags = [{:help_flag, "help", true} | flags]
-        {:ok, Enum.reverse(uniq_flag_by_name(flags)), Enum.reverse(args)}
+      help_flag_present?(tokens) ->
+        finish_parsing_with_help(flags, args)
 
       String.starts_with?(token, "--") ->
-        # Long flag - use DSL parser
-        case parse(long_flag_parser(), [token]) do
-          {:ok, {:flag, :long, name, value}, _} ->
-            parse_flags_and_args(rest, [{:long_flag, name, value} | flags], args)
-
-          {:error, _} ->
-            parse_flags_and_args(rest, flags, [token | args])
-        end
+        parse_long_flag(token, rest, flags, args)
 
       String.starts_with?(token, "-") and token != "-" ->
-        # Short flag - use DSL parser
-        case parse(short_flag_parser(), [token]) do
-          {:ok, {:flag, :short, name, value}, _} ->
-            parse_flags_and_args(rest, [{:short_flag, name, value} | flags], args)
-
-          {:error, _} ->
-            parse_flags_and_args(rest, flags, [token | args])
-        end
+        parse_short_flag(token, rest, flags, args)
 
       true ->
-        # Argument - use DSL unquote_string for consistency
-        unquoted_arg = DSL.unquote_string(token)
-        parse_flags_and_args(rest, flags, [unquoted_arg | args])
+        parse_argument(token, rest, flags, args)
     end
+  end
+
+  defp help_flag_present?(tokens) do
+    "--help" in tokens or "-h" in tokens
+  end
+
+  defp finish_parsing_with_help(flags, args) do
+    flags = [{:help_flag, "help", true} | flags]
+    {:ok, Enum.reverse(uniq_flag_by_name(flags)), Enum.reverse(args)}
+  end
+
+  defp parse_long_flag(token, rest, flags, args) do
+    case parse(long_flag_parser(), [token]) do
+      {:ok, {:flag, :long, name, value}, _} ->
+        parse_flags_and_args(rest, [{:long_flag, name, value} | flags], args)
+
+      {:error, _} ->
+        parse_flags_and_args(rest, flags, [token | args])
+    end
+  end
+
+  defp parse_short_flag(token, rest, flags, args) do
+    case parse(short_flag_parser(), [token]) do
+      {:ok, {:flag, :short, name, value}, _} ->
+        parse_flags_and_args(rest, [{:short_flag, name, value} | flags], args)
+
+      {:error, _} ->
+        parse_flags_and_args(rest, flags, [token | args])
+    end
+  end
+
+  defp parse_argument(token, rest, flags, args) do
+    unquoted_arg = DSL.unquote_string(token)
+    parse_flags_and_args(rest, flags, [unquoted_arg | args])
   end
 
   defp uniq_flag_by_name(flags) do
