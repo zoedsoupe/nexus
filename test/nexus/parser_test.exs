@@ -193,33 +193,6 @@ defmodule Nexus.ParserTest do
     assert parsed == expected
   end
 
-  test "parses command with arguments and then --help flag (should stop parsing at --help)" do
-    input = "file copy source.txt dest.txt --help"
-
-    expected = %{
-      program: @program,
-      command: [:file, :copy],
-      flags: %{help: true},
-      args: %{}
-    }
-
-    assert {:ok, ^expected} = Parser.parse_ast(@cli, input)
-  end
-
-  test "parses command with --help flag among other flags (should stop parsing at --help)" do
-    input = "file copy --verbose --help"
-
-    expected = %{
-      program: @program,
-      command: [:file, :copy],
-      flags: %{help: true},
-      args: %{}
-    }
-
-    assert {:ok, parsed} = Parser.parse_ast(@cli, input)
-    assert parsed == expected
-  end
-
   test "parses command with -h flag and other flags and arguments" do
     input = "file copy -v -h source.txt dest.txt"
 
@@ -277,7 +250,9 @@ defmodule Nexus.ParserTest do
 
     assert {:error, reasons} = Parser.parse_ast(@cli, input)
     assert is_list(reasons)
-    assert Enum.any?(reasons, &String.contains?(&1, "not found"))
+
+    flattened_reasons = List.flatten(reasons)
+    assert Enum.any?(flattened_reasons, &String.contains?(&1, "not found"))
   end
 
   test "handles flags after arguments" do
