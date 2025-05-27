@@ -4,8 +4,6 @@ defmodule Nexus.Parser do
   This implementation uses functional parser combinators for clean, composable parsing.
   """
 
-  import Nexus.Parser.DSL
-
   alias Nexus.CLI.Flag
   alias Nexus.Parser.DSL
 
@@ -48,10 +46,6 @@ defmodule Nexus.Parser do
       {:error, reason} -> {:error, List.wrap(reason)}
     end
   end
-
-  # =============================================================================
-  # Tokenization Functions (kept from original)
-  # =============================================================================
 
   defp tokenize(input) do
     input
@@ -107,10 +101,6 @@ defmodule Nexus.Parser do
     {:ok, [combined | acc], false, []}
   end
 
-  # =============================================================================
-  # Command Path Parsing using Combinators
-  # =============================================================================
-
   defp extract_root_cmd_name([program_name | rest]) do
     {:ok, String.to_existing_atom(program_name), rest}
   rescue
@@ -131,7 +121,6 @@ defmodule Nexus.Parser do
       end)
 
     if subcommand_ast do
-      # Found a subcommand, add it to the path and continue
       extract_commands(rest_tokens, command_path ++ [token], subcommand_ast)
     else
       {:ok, command_path, current_ast, [token | rest_tokens]}
@@ -139,13 +128,8 @@ defmodule Nexus.Parser do
   end
 
   defp extract_commands([], command_path, current_ast) do
-    # No more tokens
     {:ok, command_path, current_ast, []}
   end
-
-  # =============================================================================
-  # Flags and Arguments Parsing using Combinators
-  # =============================================================================
 
   defp parse_flags_and_args_combinators(tokens) do
     parse_flags_and_args(tokens, [{:help_flag, "help", false}], [])
@@ -181,7 +165,7 @@ defmodule Nexus.Parser do
   end
 
   defp parse_long_flag(token, rest, flags, args) do
-    case parse(long_flag_parser(), [token]) do
+    case DSL.parse(DSL.long_flag_parser(), [token]) do
       {:ok, {:flag, :long, name, value}, _} ->
         parse_flags_and_args(rest, [{:long_flag, name, value} | flags], args)
 
@@ -191,7 +175,7 @@ defmodule Nexus.Parser do
   end
 
   defp parse_short_flag(token, rest, flags, args) do
-    case parse(short_flag_parser(), [token]) do
+    case DSL.parse(DSL.short_flag_parser(), [token]) do
       {:ok, {:flag, :short, name, value}, _} ->
         parse_flags_and_args(rest, [{:short_flag, name, value} | flags], args)
 
@@ -208,10 +192,6 @@ defmodule Nexus.Parser do
   defp uniq_flag_by_name(flags) do
     Enum.uniq_by(flags, &elem(&1, 1))
   end
-
-  # =============================================================================
-  # Legacy Support Functions (kept for compatibility)
-  # =============================================================================
 
   defp find_root(name, ast) do
     case Enum.find(ast, &(&1.name == name)) do
