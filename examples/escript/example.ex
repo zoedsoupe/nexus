@@ -24,8 +24,6 @@ defmodule Escript.Example do
 
   defcommand :greet do
     description "Greets the user by asking his name"
-
-
   end
 
   defcommand :fizzbuzz do
