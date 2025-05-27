@@ -19,8 +19,10 @@ defmodule Nexus.Parser do
   @spec parse_ast(cli :: Nexus.CLI.t(), input :: String.t() | list(String.t())) ::
           {:ok, result} | {:error, list(String.t())}
   def parse_ast(%Nexus.CLI{} = cli, input) when is_binary(input) do
-    with {:ok, tokens} <- tokenize(input) do
-      parse_ast(cli, tokens)
+    case tokenize(input) do
+      {:ok, []} -> {:error, ["No program specified"]}
+      {:ok, tokens} -> parse_ast(cli, tokens)
+      {:error, msg} -> {:error, [msg]}
     end
   end
 
@@ -84,7 +86,7 @@ defmodule Nexus.Parser do
   end
 
   defp handle_raw_quoted(token, buffer, in_quote, acc) do
-    unquoted = String.slice(token, 1..-2//-1)
+    unquoted = String.slice(token, 1..-2//1)
     {:ok, [unquoted | acc], in_quote, buffer}
   end
 
@@ -104,6 +106,9 @@ defmodule Nexus.Parser do
 
   defp extract_root_cmd_name([program_name | rest]) do
     {:ok, String.to_existing_atom(program_name), rest}
+  rescue
+    _ ->
+      {:error, "Command '#{program_name}' not found"}
   end
 
   defp extract_root_cmd_name([]), do: {:error, "No program specified"}
@@ -298,8 +303,10 @@ defmodule Nexus.Parser do
     end
   end
 
-  defp process_args_recursive(_tokens, [], acc) do
-    {:ok, acc}
+  defp process_args_recursive([], [], acc), do: {:ok, acc}
+
+  defp process_args_recursive([token | _rest], [], _acc) do
+    {:error, ["Unexpected argument '#{token}' - command does not accept arguments"]}
   end
 
   defp process_args_recursive(tokens, [arg_def | rest_args], acc) do
@@ -325,7 +332,13 @@ defmodule Nexus.Parser do
     if tokens == [] and arg_def.required do
       {:error, "Missing required argument '#{arg_def.name}' of type list"}
     else
-      {:ok, Enum.map(tokens, &parse_value(&1, arg_def)), []}
+      inner_type =
+        case arg_def.type do
+          {:list, type} -> type
+          _ -> :string
+        end
+
+      {:ok, Enum.map(tokens, &parse_value(&1, inner_type)), []}
     end
   end
 
