@@ -132,7 +132,8 @@ defmodule Nexus.Parser do
   end
 
   defp parse_flags_and_args_with_context(tokens, flag_definitions) do
-    parse_flags_and_args_with_context(tokens, [{:help_flag, "help", false}], [], flag_definitions)
+    flag_lookup = build_flag_lookup_maps(flag_definitions)
+    parse_flags_and_args_with_context(tokens, [{:help_flag, "help", false}], [], flag_lookup)
   end
 
   defp parse_flags_and_args_with_context([], flags, args, _flag_definitions) do
@@ -217,11 +218,24 @@ defmodule Nexus.Parser do
     end
   end
 
-  defp find_flag_definition(name, flag_definitions) do
-    Enum.find(flag_definitions, fn flag_def ->
-      to_string(flag_def.name) == name or
-        (flag_def.short && to_string(flag_def.short) == name)
-    end)
+  defp build_flag_lookup_maps(flag_definitions) do
+    long_map =
+      Map.new(flag_definitions, fn flag_def ->
+        {to_string(flag_def.name), flag_def}
+      end)
+
+    short_map =
+      flag_definitions
+      |> Enum.filter(& &1.short)
+      |> Map.new(fn flag_def ->
+        {to_string(flag_def.short), flag_def}
+      end)
+
+    %{long: long_map, short: short_map}
+  end
+
+  defp find_flag_definition(name, %{long: long_map, short: short_map}) do
+    Map.get(long_map, name) || Map.get(short_map, name)
   end
 
   defp flag_type_to_atom(:long), do: :long_flag
@@ -252,7 +266,9 @@ defmodule Nexus.Parser do
   end
 
   defp process_flags(flag_tokens, defined_flags, _help) do
-    case parse_all_flags(flag_tokens, defined_flags, %{}) do
+    flag_lookup = build_flag_lookup_maps(defined_flags)
+
+    case parse_all_flags(flag_tokens, flag_lookup, %{}) do
       {:ok, flags} ->
         missing_required_flags = list_missing_required_flags(flags, defined_flags)
 
@@ -280,18 +296,12 @@ defmodule Nexus.Parser do
     end
   end
 
-  defp defined_flag?(name, %Flag{short: nil} = flag), do: name == to_string(flag.name)
-
-  defp defined_flag?(name, %Flag{} = flag) do
-    to_string(flag.name) == name or to_string(flag.short) == name
-  end
-
   defp parse_flag({_flag_type, "help", value}, parsed, _defined) do
     {:ok, Map.put(parsed, :help, value)}
   end
 
-  defp parse_flag({_flag_type, name, value}, parsed, defined) do
-    flag_def = Enum.find(defined, &defined_flag?(name, &1))
+  defp parse_flag({_flag_type, name, value}, parsed, %{long: _, short: _} = flag_lookup) do
+    flag_def = find_flag_definition(name, flag_lookup)
 
     if flag_def do
       case parse_value(value, flag_def.type) do

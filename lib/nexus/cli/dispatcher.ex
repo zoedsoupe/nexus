@@ -30,8 +30,7 @@ defmodule Nexus.CLI.Dispatcher do
       case Map.values(args) do
         [value] -> value
         [] -> nil
-        # fallback for edge case
-        _ -> hd(Map.values(args))
+        [first | _rest] -> first
       end
 
     input = %Input{flags: flags, value: single}
