@@ -31,7 +31,7 @@ defmodule Nexus.Parser do
     with {:ok, root_cmd, tokens} <- extract_root_cmd_name(tokens),
          {:ok, root_ast} <- find_root(root_cmd, cli.spec),
          {:ok, command_path, command_ast, tokens} <- extract_commands(tokens, root_ast),
-         {:ok, flags, args} <- parse_flags_and_args_combinators(tokens),
+         {:ok, flags, args} <- parse_flags_and_args_with_context(tokens, command_ast.flags),
          {:ok, help_issued?} <- verify_help_presence(flags),
          {:ok, processed_flags} <- process_flags(flags, command_ast.flags, help: help_issued?),
          {:ok, processed_args} <- process_args(args, command_ast.args, help: help_issued?) do
@@ -131,27 +131,27 @@ defmodule Nexus.Parser do
     {:ok, command_path, current_ast, []}
   end
 
-  defp parse_flags_and_args_combinators(tokens) do
-    parse_flags_and_args(tokens, [{:help_flag, "help", false}], [])
+  defp parse_flags_and_args_with_context(tokens, flag_definitions) do
+    parse_flags_and_args_with_context(tokens, [{:help_flag, "help", false}], [], flag_definitions)
   end
 
-  defp parse_flags_and_args([], flags, args) do
+  defp parse_flags_and_args_with_context([], flags, args, _flag_definitions) do
     {:ok, Enum.reverse(uniq_flag_by_name(flags)), Enum.reverse(args)}
   end
 
-  defp parse_flags_and_args([token | rest] = tokens, flags, args) do
+  defp parse_flags_and_args_with_context([token | rest] = tokens, flags, args, flag_definitions) do
     cond do
       help_flag_present?(tokens) ->
         finish_parsing_with_help(flags, args)
 
       String.starts_with?(token, "--") ->
-        parse_long_flag(token, rest, flags, args)
+        parse_long_flag_with_context(token, rest, flags, args, flag_definitions)
 
       String.starts_with?(token, "-") and token != "-" ->
-        parse_short_flag(token, rest, flags, args)
+        parse_short_flag_with_context(token, rest, flags, args, flag_definitions)
 
       true ->
-        parse_argument(token, rest, flags, args)
+        parse_argument_with_context(token, rest, flags, args, flag_definitions)
     end
   end
 
@@ -164,30 +164,68 @@ defmodule Nexus.Parser do
     {:ok, Enum.reverse(uniq_flag_by_name(flags)), Enum.reverse(args)}
   end
 
-  defp parse_long_flag(token, rest, flags, args) do
+  defp parse_long_flag_with_context(token, rest, flags, args, flag_definitions) do
     case DSL.parse(DSL.long_flag_parser(), [token]) do
+      {:ok, {:flag, :long, name, true}, _} ->
+        handle_flag_value_consumption(:long, name, true, rest, flags, args, flag_definitions)
+
       {:ok, {:flag, :long, name, value}, _} ->
-        parse_flags_and_args(rest, [{:long_flag, name, value} | flags], args)
+        parse_flags_and_args_with_context(rest, [{:long_flag, name, value} | flags], args, flag_definitions)
 
       {:error, _} ->
-        parse_flags_and_args(rest, flags, [token | args])
+        parse_flags_and_args_with_context(rest, flags, [token | args], flag_definitions)
     end
   end
 
-  defp parse_short_flag(token, rest, flags, args) do
+  defp parse_short_flag_with_context(token, rest, flags, args, flag_definitions) do
     case DSL.parse(DSL.short_flag_parser(), [token]) do
+      {:ok, {:flag, :short, name, true}, _} ->
+        handle_flag_value_consumption(:short, name, true, rest, flags, args, flag_definitions)
+
       {:ok, {:flag, :short, name, value}, _} ->
-        parse_flags_and_args(rest, [{:short_flag, name, value} | flags], args)
+        parse_flags_and_args_with_context(rest, [{:short_flag, name, value} | flags], args, flag_definitions)
 
       {:error, _} ->
-        parse_flags_and_args(rest, flags, [token | args])
+        parse_flags_and_args_with_context(rest, flags, [token | args], flag_definitions)
     end
   end
 
-  defp parse_argument(token, rest, flags, args) do
+  defp parse_argument_with_context(token, rest, flags, args, flag_definitions) do
     unquoted_arg = DSL.unquote_string(token)
-    parse_flags_and_args(rest, flags, [unquoted_arg | args])
+    parse_flags_and_args_with_context(rest, flags, [unquoted_arg | args], flag_definitions)
   end
+
+  defp handle_flag_value_consumption(flag_type, name, _default_value, rest, flags, args, flag_definitions) do
+    flag_def = find_flag_definition(name, flag_definitions)
+
+    case flag_def do
+      %Flag{type: :boolean} ->
+        flag_entry = {flag_type_to_atom(flag_type), name, true}
+        parse_flags_and_args_with_context(rest, [flag_entry | flags], args, flag_definitions)
+
+      %Flag{type: type} when type != :boolean and rest != [] ->
+        [value | remaining_rest] = rest
+        flag_entry = {flag_type_to_atom(flag_type), name, value}
+        parse_flags_and_args_with_context(remaining_rest, [flag_entry | flags], args, flag_definitions)
+
+      %Flag{type: type} when type != :boolean ->
+        {:error, "Flag --#{name} expects a #{type} value but none was provided"}
+
+      nil ->
+        flag_entry = {flag_type_to_atom(flag_type), name, true}
+        parse_flags_and_args_with_context(rest, [flag_entry | flags], args, flag_definitions)
+    end
+  end
+
+  defp find_flag_definition(name, flag_definitions) do
+    Enum.find(flag_definitions, fn flag_def ->
+      to_string(flag_def.name) == name or
+        (flag_def.short && to_string(flag_def.short) == name)
+    end)
+  end
+
+  defp flag_type_to_atom(:long), do: :long_flag
+  defp flag_type_to_atom(:short), do: :short_flag
 
   defp uniq_flag_by_name(flags) do
     Enum.uniq_by(flags, &elem(&1, 1))
