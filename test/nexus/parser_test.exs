@@ -240,9 +240,8 @@ defmodule Nexus.ParserTest do
   test "handles integer parsing errors gracefully" do
     input = "file copy --level=abc file1.txt file2.txt"
 
-    assert_raise ArgumentError, fn ->
-      Parser.parse_ast(@cli, input)
-    end
+    assert {:error, reason} = Parser.parse_ast(@cli, input)
+    assert reason == ["Invalid integer value: abc"]
   end
 
   test "validates command existence" do
@@ -339,12 +338,11 @@ defmodule Nexus.ParserTest do
     assert parsed == expected
   end
 
-  test "handles non-integer values for integer flags - should raise error" do
+  test "handles non-integer values for integer flags - should return error" do
     input = ~s(folder merge --level="5=test" folder1)
 
-    assert_raise ArgumentError, fn ->
-      Parser.parse_ast(@cli, input)
-    end
+    assert {:error, reason} = Parser.parse_ast(@cli, input)
+    assert reason == [~s|Invalid integer value: "5=test"|]
   end
 
   test "handles empty quoted strings" do
