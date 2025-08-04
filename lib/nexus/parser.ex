@@ -4,6 +4,7 @@ defmodule Nexus.Parser do
   This implementation uses functional parser combinators for clean, composable parsing.
   """
 
+  alias Nexus.CLI.Command
   alias Nexus.CLI.Flag
   alias Nexus.Parser.DSL
 
@@ -29,16 +30,16 @@ defmodule Nexus.Parser do
 
   def parse_ast(%Nexus.CLI{} = cli, tokens) when is_list(tokens) do
     with {:ok, root_cmd, tokens} <- extract_root_cmd_name(tokens),
-         {:ok, root_ast} <- find_root(root_cmd, cli.spec),
-         {:ok, command_path, command_ast, tokens} <- extract_commands(tokens, root_ast),
-         {:ok, flags, args} <- parse_flags_and_args_with_context(tokens, command_ast.flags),
+         {:ok, root_ast} <- find_root_or_use_cli(root_cmd, cli),
+         {:ok, command_path, command_ast, tokens} <- extract_commands(tokens, root_ast, cli),
+         {:ok, flags, args} <- parse_flags_and_args_with_context(tokens, command_ast.flags, cli.root_flags),
          {:ok, help_issued?} <- verify_help_presence(flags),
-         {:ok, processed_flags} <- process_flags(flags, command_ast.flags, help: help_issued?),
+         {:ok, processed_flags} <- process_flags(flags, command_ast.flags ++ cli.root_flags, help: help_issued?),
          {:ok, processed_args} <- process_args(args, command_ast.args, help: help_issued?) do
       {:ok,
        %{
          program: cli.name,
-         command: [root_cmd | Enum.map(command_path, &String.to_atom/1)],
+         command: if(root_ast, do: [root_cmd | Enum.map(command_path, &String.to_atom/1)], else: []),
          flags: processed_flags,
          args: processed_args
        }}
@@ -110,37 +111,43 @@ defmodule Nexus.Parser do
 
   defp extract_root_cmd_name([]), do: {:error, "No program specified"}
 
-  defp extract_commands(tokens, program_ast) do
-    extract_commands(tokens, [], program_ast)
+  defp extract_commands(tokens, program_ast, _cli) do
+    if program_ast do
+      extract_commands_recursive(tokens, [], program_ast)
+    else
+      # No command found, this might be a root flag invocation
+      {:ok, [], %Command{flags: [], args: []}, tokens}
+    end
   end
 
-  defp extract_commands([token | rest_tokens], command_path, current_ast) do
+  defp extract_commands_recursive([token | rest_tokens], command_path, current_ast) do
     subcommand_ast =
       Enum.find(current_ast.subcommands || [], fn cmd ->
         to_string(cmd.name) == token
       end)
 
     if subcommand_ast do
-      extract_commands(rest_tokens, command_path ++ [token], subcommand_ast)
+      extract_commands_recursive(rest_tokens, command_path ++ [token], subcommand_ast)
     else
       {:ok, command_path, current_ast, [token | rest_tokens]}
     end
   end
 
-  defp extract_commands([], command_path, current_ast) do
+  defp extract_commands_recursive([], command_path, current_ast) do
     {:ok, command_path, current_ast, []}
   end
 
-  defp parse_flags_and_args_with_context(tokens, flag_definitions) do
-    flag_lookup = build_flag_lookup_maps(flag_definitions)
-    parse_flags_and_args_with_context(tokens, [{:help_flag, "help", false}], [], flag_lookup)
+  defp parse_flags_and_args_with_context(tokens, flag_definitions, root_flags) do
+    all_flags = flag_definitions ++ root_flags
+    flag_lookup = build_flag_lookup_maps(all_flags)
+    parse_flags_and_args_with_context_impl(tokens, [{:help_flag, "help", false}], [], flag_lookup)
   end
 
-  defp parse_flags_and_args_with_context([], flags, args, _flag_definitions) do
+  defp parse_flags_and_args_with_context_impl([], flags, args, _flag_definitions) do
     {:ok, Enum.reverse(uniq_flag_by_name(flags)), Enum.reverse(args)}
   end
 
-  defp parse_flags_and_args_with_context([token | rest] = tokens, flags, args, flag_definitions) do
+  defp parse_flags_and_args_with_context_impl([token | rest] = tokens, flags, args, flag_definitions) do
     cond do
       help_flag_present?(tokens) ->
         finish_parsing_with_help(flags, args)
@@ -171,10 +178,10 @@ defmodule Nexus.Parser do
         handle_flag_value_consumption(:long, name, true, rest, flags, args, flag_definitions)
 
       {:ok, {:flag, :long, name, value}, _} ->
-        parse_flags_and_args_with_context(rest, [{:long_flag, name, value} | flags], args, flag_definitions)
+        parse_flags_and_args_with_context_impl(rest, [{:long_flag, name, value} | flags], args, flag_definitions)
 
       {:error, _} ->
-        parse_flags_and_args_with_context(rest, flags, [token | args], flag_definitions)
+        parse_flags_and_args_with_context_impl(rest, flags, [token | args], flag_definitions)
     end
   end
 
@@ -184,16 +191,16 @@ defmodule Nexus.Parser do
         handle_flag_value_consumption(:short, name, true, rest, flags, args, flag_definitions)
 
       {:ok, {:flag, :short, name, value}, _} ->
-        parse_flags_and_args_with_context(rest, [{:short_flag, name, value} | flags], args, flag_definitions)
+        parse_flags_and_args_with_context_impl(rest, [{:short_flag, name, value} | flags], args, flag_definitions)
 
       {:error, _} ->
-        parse_flags_and_args_with_context(rest, flags, [token | args], flag_definitions)
+        parse_flags_and_args_with_context_impl(rest, flags, [token | args], flag_definitions)
     end
   end
 
   defp parse_argument_with_context(token, rest, flags, args, flag_definitions) do
     unquoted_arg = DSL.unquote_string(token)
-    parse_flags_and_args_with_context(rest, flags, [unquoted_arg | args], flag_definitions)
+    parse_flags_and_args_with_context_impl(rest, flags, [unquoted_arg | args], flag_definitions)
   end
 
   defp handle_flag_value_consumption(flag_type, name, _default_value, rest, flags, args, flag_definitions) do
@@ -202,19 +209,19 @@ defmodule Nexus.Parser do
     case flag_def do
       %Flag{type: :boolean} ->
         flag_entry = {flag_type_to_atom(flag_type), name, true}
-        parse_flags_and_args_with_context(rest, [flag_entry | flags], args, flag_definitions)
+        parse_flags_and_args_with_context_impl(rest, [flag_entry | flags], args, flag_definitions)
 
       %Flag{type: type} when type != :boolean and rest != [] ->
         [value | remaining_rest] = rest
         flag_entry = {flag_type_to_atom(flag_type), name, value}
-        parse_flags_and_args_with_context(remaining_rest, [flag_entry | flags], args, flag_definitions)
+        parse_flags_and_args_with_context_impl(remaining_rest, [flag_entry | flags], args, flag_definitions)
 
       %Flag{type: type} when type != :boolean ->
         {:error, "Flag --#{name} expects a #{type} value but none was provided"}
 
       nil ->
         flag_entry = {flag_type_to_atom(flag_type), name, true}
-        parse_flags_and_args_with_context(rest, [flag_entry | flags], args, flag_definitions)
+        parse_flags_and_args_with_context_impl(rest, [flag_entry | flags], args, flag_definitions)
     end
   end
 
@@ -245,10 +252,19 @@ defmodule Nexus.Parser do
     Enum.uniq_by(flags, &elem(&1, 1))
   end
 
-  defp find_root(name, ast) do
-    case Enum.find(ast, &(&1.name == name)) do
-      nil -> {:error, "Command '#{name}' not found"}
-      program -> {:ok, program}
+  defp find_root_or_use_cli(name, cli) do
+    case Enum.find(cli.spec, &(&1.name == name)) do
+      nil ->
+        # Check if the name is the CLI itself (program name for root flags)
+        if name == cli.name and Enum.any?(cli.root_flags) do
+          # No command, just root flags
+          {:ok, nil}
+        else
+          {:error, "Command '#{name}' not found"}
+        end
+
+      program ->
+        {:ok, program}
     end
   end
 

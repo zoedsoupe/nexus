@@ -246,10 +246,11 @@ defmodule Nexus.CLI do
           spec: ast,
           version: String.t(),
           description: String.t(),
-          handler: module
+          handler: module,
+          root_flags: list(Flag.t())
         }
 
-  defstruct [:name, :spec, :version, :description, :handler, :otp_app]
+  defstruct [:name, :spec, :version, :description, :handler, :otp_app, root_flags: []]
 
   defmodule Input do
     @moduledoc """
@@ -347,6 +348,7 @@ defmodule Nexus.CLI do
       Module.register_attribute(__MODULE__, :cli_commands, accumulate: true)
       Module.register_attribute(__MODULE__, :cli_command_stack, accumulate: false)
       Module.register_attribute(__MODULE__, :cli_flag_stack, accumulate: false)
+      Module.register_attribute(__MODULE__, :cli_root_flags, accumulate: true)
 
       @before_compile Nexus.CLI
 
@@ -673,13 +675,25 @@ defmodule Nexus.CLI do
     [flag | rest_flag] = Module.get_attribute(module, :cli_flag_stack)
     Module.put_attribute(module, :cli_flag_stack, rest_flag)
 
-    [current | rest] = Module.get_attribute(module, :cli_command_stack)
+    command_stack = Module.get_attribute(module, :cli_command_stack)
 
     flag = V.validate_flag(flag)
     flag = if flag.type == :boolean, do: Map.put_new(flag, :default, false), else: flag
 
-    updated = Map.update!(current, :flags, fn flags -> [flag | flags] end)
-    Module.put_attribute(module, :cli_command_stack, [updated | rest])
+    case command_stack do
+      nil ->
+        # We're at the root level, add to root flags
+        Module.put_attribute(module, :cli_root_flags, flag)
+
+      [] ->
+        # We're at the root level, add to root flags
+        Module.put_attribute(module, :cli_root_flags, flag)
+
+      [current | rest] ->
+        # We're inside a command, add to command flags
+        updated = Map.update!(current, :flags, fn flags -> [flag | flags] end)
+        Module.put_attribute(module, :cli_command_stack, [updated | rest])
+    end
   end
 
   def __process_command_arguments__(command) do
@@ -738,6 +752,7 @@ defmodule Nexus.CLI do
 
   defmacro __before_compile__(env) do
     commands = Module.get_attribute(env.module, :cli_commands)
+    root_flags = Module.get_attribute(env.module, :cli_root_flags) || []
     cli = Module.get_attribute(env.module, :cli)
 
     quote do
@@ -752,6 +767,7 @@ defmodule Nexus.CLI do
           unquote(Macro.escape(cli))
           | description: description(),
             spec: unquote(Macro.escape(commands)),
+            root_flags: unquote(Macro.escape(root_flags)),
             version: version(),
             handler: __MODULE__
         }

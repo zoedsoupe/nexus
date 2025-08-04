@@ -22,7 +22,10 @@ defmodule Nexus.CLI.Dispatcher do
   end
 
   def dispatch(%CLI{} = cli, %{command: []} = result) do
-    dispatch(cli, put_in(result, [:flags, :help], true))
+    case find_active_root_flag(cli.root_flags, result.flags) do
+      nil -> dispatch(cli, put_in(result, [:flags, :help], true))
+      flag_name -> dispatch_root_flag(cli, flag_name, result)
+    end
   end
 
   def dispatch(%CLI{} = cli, %{args: args, flags: flags, command: command}) when map_size(args) == 1 do
@@ -98,4 +101,34 @@ defmodule Nexus.CLI.Dispatcher do
 
   defp format_command([single]), do: to_string(single)
   defp format_command(path) when is_list(path), do: Enum.join(path, " ")
+
+  defp find_active_root_flag(root_flags, flags) do
+    Enum.find_value(root_flags, fn flag ->
+      if Map.get(flags, flag.name, false) == true, do: flag.name
+    end)
+  end
+
+  defp dispatch_root_flag(cli, flag_name, result) do
+    input = %Input{flags: result.flags, args: result.args}
+
+    try do
+      cli.handler.handle_input(flag_name, input)
+    rescue
+      e in [UndefinedFunctionError] ->
+        log_handler_error(e, cli, [flag_name], "Handler function not defined", __STACKTRACE__)
+        {:error, {1, "Root flag '#{flag_name}' is not implemented"}}
+
+      e in [FunctionClauseError] ->
+        log_handler_error(e, cli, [flag_name], "Invalid arguments for handler", __STACKTRACE__)
+        {:error, {1, "Invalid arguments for root flag '#{flag_name}'"}}
+
+      e in [ArgumentError] ->
+        log_handler_error(e, cli, [flag_name], "Invalid argument", __STACKTRACE__)
+        {:error, {1, "Invalid argument: #{Exception.message(e)}"}}
+
+      exception ->
+        log_handler_error(exception, cli, [flag_name], "Unexpected error in handler", __STACKTRACE__)
+        {:error, {1, "An error occurred while executing root flag '#{flag_name}'"}}
+    end
+  end
 end
