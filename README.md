@@ -8,7 +8,7 @@
 
 > Create CLIs in a magic and declarative way!
 
-An `Elixir` library to write command line apps in a cleaner and elegant way!
+A pure `Elixir` library to write command line apps in a cleaner and elegant way!
 
 [![Hex.pm](https://img.shields.io/hexpm/v/nexus_cli.svg)](https://hex.pm/packages/nexus_cli)
 [![Downloads](https://img.shields.io/hexpm/dt/nexus_cli.svg)](https://hex.pm/packages/nexus_cli)
@@ -55,6 +55,26 @@ end
 
 More different ways to use this library can be found on the [examples](./examples) folder
 Documentation on defining a CLI module can be found at the [Nexus.CLI](https://hexdocs.pm/nexus_cli/Nexus.CLI.html)
+
+# Roadmap
+
+| Feature                          | Status       | Description                                                                                   |
+|----------------------------------|--------------|-----------------------------------------------------------------------------------------------|
+| **Core Nexus.CLI Implementation**| ✅ Completed  | Base implementation of the `Nexus.CLI` module with macro-based DSL for defining CLIs.         |
+| **Automatic Help Generation**    | ✅ Completed  | Automatically generate help messages based on command definitions.                            |
+| **Command Parsing and Dispatching**| ✅ Completed| Parse user input and dispatch commands to the appropriate handlers.                           |
+| **Nexus.TUI Development**        | 🚧 In Progress | Build the `Nexus.TUI` module leveraging Phoenix LiveView and TEA for terminal UIs.           |
+| **TUI Component Library**        | 🔜 Planned    | Develop reusable components for building terminal UIs.                                        |
+| **Integration with Phoenix LiveView**| 🔜 Planned| Integrate `Nexus.TUI` with Phoenix LiveView for live terminal experiences.                    |
+| **Community Contributions**      | ♾️ Ongoing    | Encourage and incorporate feedback and contributions from the community.                      |
+
+### Features
+- Macro based DSL
+  - [x] define global/root commands
+  - [x] define subcommands (supporting nesting)
+  - [x] define flags
+  - [ ] define global/root flags
+- [x] Automatic help flags generation
 
 ## Why "Nexus"
 

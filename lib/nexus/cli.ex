@@ -808,7 +808,7 @@ defmodule Nexus.CLI do
 
   If `handle_input/2` returns an error, it stops the VM with the desired code.
   """
-  @spec __run_cli__(t, binary) :: :ok
+  @spec __run_cli__(t, binary | [binary]) :: :ok
   def __run_cli__(%__MODULE__{} = cli, input) when is_binary(input) or is_list(input) do
     with {:ok, result} <- Parser.parse_ast(cli, input),
          :ok <- Dispatcher.dispatch(cli, result) do
