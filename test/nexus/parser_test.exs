@@ -403,6 +403,48 @@ defmodule Nexus.ParserTest do
     assert parsed == expected
   end
 
+  test "parses integer flag with space-separated value" do
+    input = "file copy --level 5 file1.txt file2.txt"
+
+    expected = %{
+      program: @program,
+      command: [:file, :copy],
+      flags: %{level: 5, verbose: false, recursive: false, help: false},
+      args: %{source: "file1.txt", dest: "file2.txt"}
+    }
+
+    assert {:ok, parsed} = Parser.parse_ast(@cli, input)
+    assert parsed == expected
+  end
+
+  test "parses multiple integer flags with space-separated values" do
+    input = "folder merge --level 3 --recursive folder1"
+
+    expected = %{
+      program: @program,
+      command: [:folder, :merge],
+      flags: %{level: 3, recursive: true, help: false},
+      args: %{targets: ["folder1"]}
+    }
+
+    assert {:ok, parsed} = Parser.parse_ast(@cli, input)
+    assert parsed == expected
+  end
+
+  test "parses boolean flag followed by integer flag with space-separated value" do
+    input = "folder merge --recursive --level 7 folder1 folder2"
+
+    expected = %{
+      program: @program,
+      command: [:folder, :merge],
+      flags: %{recursive: true, level: 7, help: false},
+      args: %{targets: ["folder1", "folder2"]}
+    }
+
+    assert {:ok, parsed} = Parser.parse_ast(@cli, input)
+    assert parsed == expected
+  end
+
   test "handles subcommands with exact matching - should fail for unknown subcommand" do
     input = "file cop file1.txt file2.txt"
 
