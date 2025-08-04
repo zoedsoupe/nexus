@@ -22,7 +22,7 @@ Just add the `nexus_cli` package to your `mix.exs`
 ```elixir
 def deps do
   [
-    {:nexus_cli, "~> 0.5"}
+    {:nexus_cli, "~> 0.5.0"} # x-release-version
   ]
 end
 ```

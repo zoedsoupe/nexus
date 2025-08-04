@@ -163,16 +163,14 @@ defmodule Nexus.CLI do
   - **Error Handling**: Use the `{:error, {code, reason}}` tuple to return errors from `handle_input/2`. The application will exit with the specified code, and the reason will be printed.
   """
 
-  alias Nexus.CLI.Validation, as: V
-
   alias Nexus.CLI.Argument
   alias Nexus.CLI.Command
   alias Nexus.CLI.Dispatcher
   alias Nexus.CLI.Flag
   alias Nexus.CLI.Help
   alias Nexus.CLI.Input
+  alias Nexus.CLI.Validation, as: V
   alias Nexus.CLI.Validation.ValidationError
-
   alias Nexus.Parser
 
   @typedoc "Represents the CLI spec, basically a list of `Command.t()` spec"
@@ -275,9 +273,6 @@ defmodule Nexus.CLI do
   defmodule Command do
     @moduledoc "Represents a command or subcommand."
 
-    alias Nexus.CLI.Argument
-    alias Nexus.CLI.Flag
-
     @type t :: %__MODULE__{
             name: atom | nil,
             description: String.t() | nil,
@@ -336,6 +331,8 @@ defmodule Nexus.CLI do
     cli = %__MODULE__{name: name, otp_app: otp_app}
 
     quote do
+      @behaviour Nexus.CLI
+
       import Nexus.CLI,
         only: [
           defcommand: 2,
@@ -352,8 +349,6 @@ defmodule Nexus.CLI do
       Module.register_attribute(__MODULE__, :cli_flag_stack, accumulate: false)
 
       @before_compile Nexus.CLI
-
-      @behaviour Nexus.CLI
 
       @impl Nexus.CLI
       def version do
@@ -793,6 +788,7 @@ defmodule Nexus.CLI do
       """
       def display_help(path \\ []) do
         alias Nexus.CLI
+
         Help.display(__nexus_spec__(), path)
       end
     end

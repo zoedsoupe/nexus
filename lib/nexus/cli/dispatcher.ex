@@ -6,7 +6,6 @@ defmodule Nexus.CLI.Dispatcher do
   alias Nexus.CLI
   alias Nexus.CLI.Help
   alias Nexus.CLI.Input
-
   alias Nexus.Parser
 
   @doc """
@@ -26,8 +25,7 @@ defmodule Nexus.CLI.Dispatcher do
     dispatch(cli, put_in(result, [:flags, :help], true))
   end
 
-  def dispatch(%CLI{} = cli, %{args: args, flags: flags, command: command})
-      when map_size(args) == 1 do
+  def dispatch(%CLI{} = cli, %{args: args, flags: flags, command: command}) when map_size(args) == 1 do
     single = hd(Map.values(args))
     input = %Input{flags: flags, value: single}
 

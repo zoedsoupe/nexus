@@ -36,9 +36,7 @@ defmodule Nexus.CLI.Help do
 
       # Final note
       if cmd.subcommands != [] do
-        IO.puts(
-          "\nUse '#{cli.name} #{Enum.join(command_path, " ")} [COMMAND] --help' for more information on a command."
-        )
+        IO.puts("\nUse '#{cli.name} #{Enum.join(command_path, " ")} [COMMAND] --help' for more information on a command.")
       end
     else
       IO.puts("Command not found")
@@ -61,8 +59,6 @@ defmodule Nexus.CLI.Help do
   defp get_command(%CLI{} = cli, [root | rest]) do
     if root_cmd = Enum.find(cli.spec, &(&1.name == root)) do
       get_subcommand(root_cmd, rest)
-    else
-      nil
     end
   end
 
@@ -73,8 +69,6 @@ defmodule Nexus.CLI.Help do
   defp get_subcommand(cmd, [name | rest]) do
     if subcmd = Enum.find(cmd.subcommands || [], &(&1.name == name)) do
       get_subcommand(subcmd, rest)
-    else
-      nil
     end
   end
 
@@ -83,14 +77,14 @@ defmodule Nexus.CLI.Help do
     parts = [cli_name | Enum.map(command_path, &Atom.to_string/1)]
 
     # Include options
-    parts = if cmd.flags != [], do: parts ++ ["[OPTIONS]"], else: parts
+    parts = if cmd.flags == [], do: parts, else: parts ++ ["[OPTIONS]"]
 
     # Include subcommands
     parts =
-      if cmd.subcommands != [] do
-        parts ++ ["[COMMAND]"]
-      else
+      if cmd.subcommands == [] do
         parts
+      else
+        parts ++ ["[COMMAND]"]
       end
 
     # Include arguments
@@ -146,7 +140,7 @@ defmodule Nexus.CLI.Help do
 
   defp display_option(flag) do
     short = if flag.short, do: "-#{flag.short}, ", else: "    "
-    type = if flag.type != :boolean, do: " <#{String.upcase(to_string(flag.type))}>", else: ""
+    type = if flag.type == :boolean, do: "", else: " <#{String.upcase(to_string(flag.type))}>"
     IO.puts("  #{short}--#{flag.name}#{type}  #{flag.description || "No description"}")
   end
 
