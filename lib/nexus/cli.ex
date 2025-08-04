@@ -565,6 +565,16 @@ defmodule Nexus.CLI do
   end
 
   def __finalize_command__(module) do
+    case Module.get_attribute(module, :cli_command_stack) do
+      [_command | _rest] ->
+        :ok
+
+      [] ->
+        raise CompileError,
+          description: "No command found in stack to finalize",
+          file: __ENV__.file
+    end
+
     [command | rest] = Module.get_attribute(module, :cli_command_stack)
 
     command =

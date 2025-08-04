@@ -38,7 +38,7 @@ defmodule Nexus.Parser do
       {:ok,
        %{
          program: cli.name,
-         command: [root_cmd | Enum.map(command_path, &String.to_existing_atom/1)],
+         command: [root_cmd | Enum.map(command_path, &String.to_atom/1)],
          flags: processed_flags,
          args: processed_args
        }}
@@ -104,7 +104,7 @@ defmodule Nexus.Parser do
   defp extract_root_cmd_name([program_name | rest]) do
     {:ok, String.to_existing_atom(program_name), rest}
   rescue
-    _ ->
+    ArgumentError ->
       {:error, "Command '#{program_name}' not found"}
   end
 
@@ -132,7 +132,8 @@ defmodule Nexus.Parser do
   end
 
   defp parse_flags_and_args_with_context(tokens, flag_definitions) do
-    parse_flags_and_args_with_context(tokens, [{:help_flag, "help", false}], [], flag_definitions)
+    flag_lookup = build_flag_lookup_maps(flag_definitions)
+    parse_flags_and_args_with_context(tokens, [{:help_flag, "help", false}], [], flag_lookup)
   end
 
   defp parse_flags_and_args_with_context([], flags, args, _flag_definitions) do
@@ -217,11 +218,24 @@ defmodule Nexus.Parser do
     end
   end
 
-  defp find_flag_definition(name, flag_definitions) do
-    Enum.find(flag_definitions, fn flag_def ->
-      to_string(flag_def.name) == name or
-        (flag_def.short && to_string(flag_def.short) == name)
-    end)
+  defp build_flag_lookup_maps(flag_definitions) do
+    long_map =
+      Map.new(flag_definitions, fn flag_def ->
+        {to_string(flag_def.name), flag_def}
+      end)
+
+    short_map =
+      flag_definitions
+      |> Enum.filter(& &1.short)
+      |> Map.new(fn flag_def ->
+        {to_string(flag_def.short), flag_def}
+      end)
+
+    %{long: long_map, short: short_map}
+  end
+
+  defp find_flag_definition(name, %{long: long_map, short: short_map}) do
+    Map.get(long_map, name) || Map.get(short_map, name)
   end
 
   defp flag_type_to_atom(:long), do: :long_flag
@@ -252,36 +266,53 @@ defmodule Nexus.Parser do
   end
 
   defp process_flags(flag_tokens, defined_flags, _help) do
-    flags = Enum.reduce(flag_tokens, %{}, &parse_flag(&1, &2, defined_flags))
+    flag_lookup = build_flag_lookup_maps(defined_flags)
 
-    missing_required_flags = list_missing_required_flags(flags, defined_flags)
+    case parse_all_flags(flag_tokens, flag_lookup, %{}) do
+      {:ok, flags} ->
+        missing_required_flags = list_missing_required_flags(flags, defined_flags)
 
-    if Enum.empty?(missing_required_flags) do
-      non_parsed_flags = list_non_parsed_flags(flags, defined_flags)
-      {:ok, Map.merge(flags, non_parsed_flags)}
-    else
-      {:error, "Missing required flags: #{Enum.join(missing_required_flags, ", ")}"}
+        if Enum.empty?(missing_required_flags) do
+          non_parsed_flags = list_non_parsed_flags(flags, defined_flags)
+          {:ok, Map.merge(flags, non_parsed_flags)}
+        else
+          {:error, "Missing required flags: #{Enum.join(missing_required_flags, ", ")}"}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp defined_flag?(name, %Flag{short: nil} = flag), do: name == to_string(flag.name)
+  defp parse_all_flags([], _defined_flags, acc), do: {:ok, acc}
 
-  defp defined_flag?(name, %Flag{} = flag) do
-    to_string(flag.name) == name or to_string(flag.short) == name
+  defp parse_all_flags([flag_token | rest], defined_flags, acc) do
+    case parse_flag(flag_token, acc, defined_flags) do
+      {:ok, updated_acc} ->
+        parse_all_flags(rest, defined_flags, updated_acc)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp parse_flag({_flag_type, "help", value}, parsed, _defined) do
-    Map.put(parsed, :help, value)
+    {:ok, Map.put(parsed, :help, value)}
   end
 
-  defp parse_flag({_flag_type, name, value}, parsed, defined) do
-    flag_def = Enum.find(defined, &defined_flag?(name, &1))
+  defp parse_flag({_flag_type, name, value}, parsed, %{long: _, short: _} = flag_lookup) do
+    flag_def = find_flag_definition(name, flag_lookup)
 
     if flag_def do
-      parsed_value = parse_value(value, flag_def.type)
-      Map.put(parsed, flag_def.name, parsed_value)
+      case parse_value(value, flag_def.type) do
+        {:ok, parsed_value} ->
+          {:ok, Map.put(parsed, flag_def.name, parsed_value)}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     else
-      parsed
+      {:ok, parsed}
     end
   end
 
@@ -299,29 +330,29 @@ defmodule Nexus.Parser do
     |> Map.new(&{&1.name, &1.default})
   end
 
-  defp parse_value(value, :boolean) when is_boolean(value), do: value
-  defp parse_value("true", :boolean), do: true
-  defp parse_value("false", :boolean), do: false
+  defp parse_value(value, :boolean) when is_boolean(value), do: {:ok, value}
+  defp parse_value("true", :boolean), do: {:ok, true}
+  defp parse_value("false", :boolean), do: {:ok, false}
 
-  defp parse_value(value, :integer) when is_integer(value), do: value
+  defp parse_value(value, :integer) when is_integer(value), do: {:ok, value}
 
   defp parse_value(value, :integer) do
     case Integer.parse(value) do
-      {int, ""} -> int
-      _ -> raise ArgumentError, "Invalid integer value: #{value}"
+      {int, ""} -> {:ok, int}
+      _ -> {:error, "Invalid integer value: #{value}"}
     end
   end
 
-  defp parse_value(value, :float) when is_float(value), do: value
+  defp parse_value(value, :float) when is_float(value), do: {:ok, value}
 
   defp parse_value(value, :float) do
     case Float.parse(value) do
-      {float, ""} -> float
-      _ -> raise ArgumentError, "Invalid float value: #{value}"
+      {float, ""} -> {:ok, float}
+      _ -> {:error, "Invalid float value: #{value}"}
     end
   end
 
-  defp parse_value(value, _), do: value
+  defp parse_value(value, _), do: {:ok, value}
 
   defp process_args(_arg_tokens, _defined_args, help: true) do
     {:ok, %{}}
@@ -343,8 +374,14 @@ defmodule Nexus.Parser do
   defp process_args_recursive(tokens, [arg_def | rest_args], acc) do
     case process_single_arg(tokens, arg_def) do
       {:ok, value, rest_tokens} ->
-        acc = Map.put(acc, arg_def.name, parse_value(value, arg_def.type))
-        process_args_recursive(rest_tokens, rest_args, acc)
+        case parse_value(value, arg_def.type) do
+          {:ok, parsed_value} ->
+            acc = Map.put(acc, arg_def.name, parsed_value)
+            process_args_recursive(rest_tokens, rest_args, acc)
+
+          {:error, reason} ->
+            {:error, reason}
+        end
 
       {:error, reason} ->
         {:error, reason}
@@ -369,7 +406,22 @@ defmodule Nexus.Parser do
           _ -> :string
         end
 
-      {:ok, Enum.map(tokens, &parse_value(&1, inner_type)), []}
+      case parse_list_values(tokens, inner_type, []) do
+        {:ok, parsed_values} -> {:ok, parsed_values, []}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  defp parse_list_values([], _type, acc), do: {:ok, Enum.reverse(acc)}
+
+  defp parse_list_values([token | rest], type, acc) do
+    case parse_value(token, type) do
+      {:ok, parsed_value} ->
+        parse_list_values(rest, type, [parsed_value | acc])
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
