@@ -46,8 +46,6 @@ jobs:
             otp: 25
           - elixir: 1.14
             otp: 24
-          - elixir: 1.14
-            otp: 23
 
     steps:
       - name: Checkout code
@@ -127,8 +125,6 @@ jobs:
             otp: 25
           - elixir: 1.14
             otp: 24
-          - elixir: 1.14
-            otp: 23
 
     steps:
       - name: Checkout code
@@ -224,8 +220,6 @@ jobs:
             otp: 25
           - elixir: 1.14
             otp: 24
-          - elixir: 1.14
-            otp: 23
 
     steps:
       - name: Checkout code
