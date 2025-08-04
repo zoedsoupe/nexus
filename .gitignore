@@ -33,4 +33,7 @@ result
 /.nix-mix/
 
 # Escript builds
+./nexus
+
+/priv/plts/
 nexus_cli

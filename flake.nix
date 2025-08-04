@@ -1,16 +1,19 @@
 {
+  description = "CLI framework for Elixir, with magic!";
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05-small";
     elixir-overlay.url = "github:zoedsoupe/elixir-overlay";
   };
 
   outputs = {
+    self,
     nixpkgs,
     elixir-overlay,
-    ...
   }: let
     inherit (nixpkgs.lib) genAttrs;
     inherit (nixpkgs.lib.systems) flakeExposed;
+
     forAllSystems = f:
       genAttrs flakeExposed (
         system: let
@@ -20,13 +23,14 @@
           f pkgs
       );
   in {
-    devShells = forAllSystems (pkgs: let
-      inherit (pkgs) mkShell;
-      inherit (pkgs.beam.interpreters) erlang_27;
-    in {
-      default = mkShell {
-        name = "nexus";
-        packages = with pkgs; [elixir_1_18 erlang_27];
+    devShells = forAllSystems (pkgs: {
+      default = pkgs.mkShell {
+        name = "nexus-dev";
+        packages = with pkgs; [
+          (elixir-with-otp erlang_28).latest
+          erlang_28
+          just
+        ];
       };
     });
   };

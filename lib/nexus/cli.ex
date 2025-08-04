@@ -273,9 +273,6 @@ defmodule Nexus.CLI do
   defmodule Command do
     @moduledoc "Represents a command or subcommand."
 
-    alias Nexus.CLI.Argument
-    alias Nexus.CLI.Flag
-
     @type t :: %__MODULE__{
             name: atom | nil,
             description: String.t() | nil,

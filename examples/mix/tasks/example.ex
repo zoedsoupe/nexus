@@ -33,5 +33,9 @@ defmodule Mix.Tasks.Example do
   end
 
   @impl Mix.Task
-  defdelegate run(argv), to: __MODULE__, as: :execute
+  def run(argv) when is_list(argv) do
+    argv
+    |> Enum.join(" ")
+    |> execute()
+  end
 end
