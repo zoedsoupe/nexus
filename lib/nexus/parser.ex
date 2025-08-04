@@ -1,10 +1,11 @@
 defmodule Nexus.Parser do
   @moduledoc """
   Nexus.Parser provides functionalities to parse raw input strings based on the CLI AST.
-  This implementation uses manual tokenization and parsing without parser combinators.
+  This implementation uses functional parser combinators for clean, composable parsing.
   """
 
   alias Nexus.CLI.Flag
+  alias Nexus.Parser.DSL
 
   @type result :: %{
           program: atom,
@@ -30,7 +31,7 @@ defmodule Nexus.Parser do
     with {:ok, root_cmd, tokens} <- extract_root_cmd_name(tokens),
          {:ok, root_ast} <- find_root(root_cmd, cli.spec),
          {:ok, command_path, command_ast, tokens} <- extract_commands(tokens, root_ast),
-         {:ok, flags, args} <- parse_flags_and_args(tokens),
+         {:ok, flags, args} <- parse_flags_and_args_combinators(tokens),
          {:ok, help_issued?} <- verify_help_presence(flags),
          {:ok, processed_flags} <- process_flags(flags, command_ast.flags, help: help_issued?),
          {:ok, processed_args} <- process_args(args, command_ast.args, help: help_issued?) do
@@ -45,8 +46,6 @@ defmodule Nexus.Parser do
       {:error, reason} -> {:error, List.wrap(reason)}
     end
   end
-
-  ## Tokenization Functions
 
   defp tokenize(input) do
     input
@@ -102,8 +101,6 @@ defmodule Nexus.Parser do
     {:ok, [combined | acc], false, []}
   end
 
-  ## Extraction Functions
-
   defp extract_root_cmd_name([program_name | rest]) do
     {:ok, String.to_existing_atom(program_name), rest}
   rescue
@@ -124,7 +121,6 @@ defmodule Nexus.Parser do
       end)
 
     if subcommand_ast do
-      # Found a subcommand, add it to the path and continue
       extract_commands(rest_tokens, command_path ++ [token], subcommand_ast)
     else
       {:ok, command_path, current_ast, [token | rest_tokens]}
@@ -132,22 +128,10 @@ defmodule Nexus.Parser do
   end
 
   defp extract_commands([], command_path, current_ast) do
-    # No more tokens
     {:ok, command_path, current_ast, []}
   end
 
-  ## Lookup Functions
-
-  defp find_root(name, ast) do
-    case Enum.find(ast, &(&1.name == name)) do
-      nil -> {:error, "Command '#{name}' not found"}
-      program -> {:ok, program}
-    end
-  end
-
-  ## Parsing Flags and Arguments
-
-  defp parse_flags_and_args(tokens) do
+  defp parse_flags_and_args_combinators(tokens) do
     parse_flags_and_args(tokens, [{:help_flag, "help", false}], [])
   end
 
@@ -157,49 +141,62 @@ defmodule Nexus.Parser do
 
   defp parse_flags_and_args([token | rest] = tokens, flags, args) do
     cond do
-      "--help" in tokens or "-h" in tokens ->
-        flags = [{:help_flag, "help", true} | flags]
-        {:ok, Enum.reverse(uniq_flag_by_name(flags)), Enum.reverse(args)}
+      help_flag_present?(tokens) ->
+        finish_parsing_with_help(flags, args)
 
       String.starts_with?(token, "--") ->
-        # Long flag
         parse_long_flag(token, rest, flags, args)
 
       String.starts_with?(token, "-") and token != "-" ->
-        # Short flag
         parse_short_flag(token, rest, flags, args)
 
       true ->
-        # Argument
+        parse_argument(token, rest, flags, args)
+    end
+  end
+
+  defp help_flag_present?(tokens) do
+    "--help" in tokens or "-h" in tokens
+  end
+
+  defp finish_parsing_with_help(flags, args) do
+    flags = [{:help_flag, "help", true} | flags]
+    {:ok, Enum.reverse(uniq_flag_by_name(flags)), Enum.reverse(args)}
+  end
+
+  defp parse_long_flag(token, rest, flags, args) do
+    case DSL.parse(DSL.long_flag_parser(), [token]) do
+      {:ok, {:flag, :long, name, value}, _} ->
+        parse_flags_and_args(rest, [{:long_flag, name, value} | flags], args)
+
+      {:error, _} ->
         parse_flags_and_args(rest, flags, [token | args])
     end
+  end
+
+  defp parse_short_flag(token, rest, flags, args) do
+    case DSL.parse(DSL.short_flag_parser(), [token]) do
+      {:ok, {:flag, :short, name, value}, _} ->
+        parse_flags_and_args(rest, [{:short_flag, name, value} | flags], args)
+
+      {:error, _} ->
+        parse_flags_and_args(rest, flags, [token | args])
+    end
+  end
+
+  defp parse_argument(token, rest, flags, args) do
+    unquoted_arg = DSL.unquote_string(token)
+    parse_flags_and_args(rest, flags, [unquoted_arg | args])
   end
 
   defp uniq_flag_by_name(flags) do
     Enum.uniq_by(flags, &elem(&1, 1))
   end
 
-  defp parse_long_flag(token, rest, flags, args) do
-    case String.split(token, "=", parts: 2) do
-      [flag] ->
-        flag_name = String.trim_leading(flag, "--")
-        parse_flags_and_args(rest, [{:long_flag, flag_name, true} | flags], args)
-
-      [flag, value] ->
-        flag_name = String.trim_leading(flag, "--")
-        parse_flags_and_args(rest, [{:long_flag, flag_name, value} | flags], args)
-    end
-  end
-
-  defp parse_short_flag(token, rest, flags, args) do
-    case String.split(token, "=", parts: 2) do
-      [flag] ->
-        flag_name = String.trim_leading(flag, "-")
-        parse_flags_and_args(rest, [{:short_flag, flag_name, true} | flags], args)
-
-      [flag, value] ->
-        flag_name = String.trim_leading(flag, "-")
-        parse_flags_and_args(rest, [{:short_flag, flag_name, value} | flags], args)
+  defp find_root(name, ast) do
+    case Enum.find(ast, &(&1.name == name)) do
+      nil -> {:error, "Command '#{name}' not found"}
+      program -> {:ok, program}
     end
   end
 
@@ -209,9 +206,8 @@ defmodule Nexus.Parser do
   end
 
   defp help_flag?({_type, "help", _v}), do: true
+  defp help_flag?({_type, "h", _v}), do: true
   defp help_flag?(_), do: false
-
-  ## Processing Flags
 
   defp process_flags(_flag_tokens, _defined_flags, help: true) do
     {:ok, %{help: true}}
@@ -224,7 +220,6 @@ defmodule Nexus.Parser do
 
     if Enum.empty?(missing_required_flags) do
       non_parsed_flags = list_non_parsed_flags(flags, defined_flags)
-
       {:ok, Map.merge(flags, non_parsed_flags)}
     else
       {:error, "Missing required flags: #{Enum.join(missing_required_flags, ", ")}"}
@@ -246,7 +241,6 @@ defmodule Nexus.Parser do
 
     if flag_def do
       parsed_value = parse_value(value, flag_def.type)
-
       Map.put(parsed, flag_def.name, parsed_value)
     else
       parsed
@@ -258,7 +252,7 @@ defmodule Nexus.Parser do
     |> Enum.filter(fn flag ->
       flag.required and not Map.has_key?(parsed, flag.name)
     end)
-    |> Enum.map(&Atom.to_string/1)
+    |> Enum.map(&to_string(&1.name))
   end
 
   defp list_non_parsed_flags(parsed, defined) do
@@ -291,7 +285,6 @@ defmodule Nexus.Parser do
 
   defp parse_value(value, _), do: value
 
-  ## Processing Arguments
   defp process_args(_arg_tokens, _defined_args, help: true) do
     {:ok, %{}}
   end
