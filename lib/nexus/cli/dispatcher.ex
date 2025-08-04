@@ -26,30 +26,77 @@ defmodule Nexus.CLI.Dispatcher do
   end
 
   def dispatch(%CLI{} = cli, %{args: args, flags: flags, command: command}) when map_size(args) == 1 do
-    single = hd(Map.values(args))
+    single =
+      case Map.values(args) do
+        [value] -> value
+        [] -> nil
+        # fallback for edge case
+        _ -> hd(Map.values(args))
+      end
+
     input = %Input{flags: flags, value: single}
 
-    case command do
-      [root] -> cli.handler.handle_input(root, input)
-      path -> cli.handler.handle_input(path, input)
+    try do
+      case command do
+        [root] -> cli.handler.handle_input(root, input)
+        path -> cli.handler.handle_input(path, input)
+      end
+    rescue
+      e in [UndefinedFunctionError] ->
+        log_handler_error(e, cli, command, "Handler function not defined", __STACKTRACE__)
+        {:error, {1, "Command '#{format_command(command)}' is not implemented"}}
+
+      e in [FunctionClauseError] ->
+        log_handler_error(e, cli, command, "Invalid arguments for handler", __STACKTRACE__)
+        {:error, {1, "Invalid arguments for command '#{format_command(command)}'"}}
+
+      e in [ArgumentError] ->
+        log_handler_error(e, cli, command, "Invalid argument", __STACKTRACE__)
+        {:error, {1, "Invalid argument: #{Exception.message(e)}"}}
+
+      exception ->
+        log_handler_error(exception, cli, command, "Unexpected error in handler", __STACKTRACE__)
+        {:error, {1, "An error occurred while executing '#{format_command(command)}'"}}
     end
-  rescue
-    _ -> fail_with_help(cli, command)
   end
 
   def dispatch(%CLI{} = cli, %{args: args, flags: flags, command: command}) do
     input = %Input{args: args, flags: flags}
 
-    case command do
-      [root] -> cli.handler.handle_input(root, input)
-      path -> cli.handler.handle_input(path, input)
+    try do
+      case command do
+        [root] -> cli.handler.handle_input(root, input)
+        path -> cli.handler.handle_input(path, input)
+      end
+    rescue
+      e in [UndefinedFunctionError] ->
+        log_handler_error(e, cli, command, "Handler function not defined", __STACKTRACE__)
+        {:error, {1, "Command '#{format_command(command)}' is not implemented"}}
+
+      e in [FunctionClauseError] ->
+        log_handler_error(e, cli, command, "Invalid arguments for handler", __STACKTRACE__)
+        {:error, {1, "Invalid arguments for command '#{format_command(command)}'"}}
+
+      e in [ArgumentError] ->
+        log_handler_error(e, cli, command, "Invalid argument", __STACKTRACE__)
+        {:error, {1, "Invalid argument: #{Exception.message(e)}"}}
+
+      exception ->
+        log_handler_error(exception, cli, command, "Unexpected error in handler", __STACKTRACE__)
+        {:error, {1, "An error occurred while executing '#{format_command(command)}'"}}
     end
-  rescue
-    _ -> fail_with_help(cli, command)
   end
 
-  defp fail_with_help(cli, cmd) do
-    Help.display(cli, cmd)
-    {:error, {1, nil}}
+  defp log_handler_error(exception, cli, command, context, stack) do
+    require Logger
+
+    Logger.error([
+      "CLI Handler Error in #{cli.handler} for command '#{format_command(command)}': ",
+      context,
+      "\nException: #{Exception.format(:error, exception, stack)}"
+    ])
   end
+
+  defp format_command([single]), do: to_string(single)
+  defp format_command(path) when is_list(path), do: Enum.join(path, " ")
 end
